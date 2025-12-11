@@ -33,6 +33,15 @@ export const PROVIDER_COMPLETION_LIMITS: Record<string, number> = {
 /*
  * Reasoning models that require maxCompletionTokens instead of maxTokens
  * These models use internal reasoning tokens and have different API parameter requirements
+ *
+ * Supported reasoning model families:
+ * - o1 series (o1-preview, o1-mini, etc.)
+ * - o3 series
+ * - GPT-5 series (gpt-5.2-2025-12-11, etc.) - 400k context, 128k output, reasoning token support
+ *
+ * TODO: Monitor OpenAI API behavior for GPT-5.x models - they support both Chat Completions
+ *       (v1/chat/completions) and Responses (v1/responses) APIs. Current implementation uses
+ *       Chat Completions via @ai-sdk/openai.
  */
 export function isReasoningModel(modelName: string): boolean {
   const result = /^(o1|o3|gpt-5)/i.test(modelName);
