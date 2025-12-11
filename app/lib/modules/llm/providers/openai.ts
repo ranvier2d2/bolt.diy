@@ -48,6 +48,21 @@ export default class OpenAIProvider extends BaseProvider {
 
     // o1-mini: 128k context, 65k output limit (reasoning model)
     { name: 'o1-mini', label: 'o1-mini', provider: 'OpenAI', maxTokenAllowed: 128000, maxCompletionTokens: 65000 },
+
+    /*
+     * GPT-5.2: 400k context, 128k output limit (reasoning model with reasoning token support)
+     * TODO: Confirm these limits against official OpenAI docs once stabilized
+     * TODO: Confirm if alias "gpt-5.2" needs a static entry as well, or if dynamic discovery via /v1/models is sufficient
+     * TODO: Verify that @ai-sdk/openai correctly routes to Chat Completions API (v1/chat/completions) for this model
+     *       OpenAI also offers a Responses API (v1/responses) - monitor for any runtime errors suggesting API mismatch
+     */
+    {
+      name: 'gpt-5.2-2025-12-11',
+      label: 'GPT-5.2',
+      provider: 'OpenAI',
+      maxTokenAllowed: 400000, // 400k context window per OpenAI docs
+      maxCompletionTokens: 128000, // 128k max output tokens per OpenAI docs
+    },
   ];
 
   async getDynamicModels(
@@ -94,6 +109,12 @@ export default class OpenAIProvider extends BaseProvider {
         contextWindow = 128000; // GPT-4o has 128k context
       } else if (m.id?.includes('gpt-4-turbo') || m.id?.includes('gpt-4-1106')) {
         contextWindow = 128000; // GPT-4 Turbo has 128k context
+      } else if (m.id?.startsWith('gpt-5')) {
+        /*
+         * TODO: GPT-5.x models have 400k context window per OpenAI docs
+         * TODO: Verify these limits as more GPT-5 variants are released
+         */
+        contextWindow = 400000; // GPT-5.x has 400k context
       } else if (m.id?.includes('gpt-4')) {
         contextWindow = 8192; // Standard GPT-4 has 8k context
       } else if (m.id?.includes('gpt-3.5-turbo')) {
@@ -111,6 +132,12 @@ export default class OpenAIProvider extends BaseProvider {
         maxCompletionTokens = 32000; // Other o1 models: 32K limit
       } else if (m.id?.includes('o3') || m.id?.includes('o4')) {
         maxCompletionTokens = 100000; // o3/o4 models: 100K output limit
+      } else if (m.id?.startsWith('gpt-5')) {
+        /*
+         * TODO: GPT-5.x models have 128k output limit per OpenAI docs
+         * TODO: Verify these limits as more GPT-5 variants are released
+         */
+        maxCompletionTokens = 128000; // GPT-5.x models: 128K output limit
       } else if (m.id?.includes('gpt-4o')) {
         maxCompletionTokens = 4096; // GPT-4o standard: 4K (64K with long output mode)
       } else if (m.id?.includes('gpt-4')) {
