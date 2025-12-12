@@ -154,7 +154,7 @@ export default function McpTab() {
     }
 
     setMCPConfigText(JSON.stringify(newConfig, null, 2));
-  }, [parsedConfig, isClaudeCodeEnabled]);
+  }, [parsedConfig]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
