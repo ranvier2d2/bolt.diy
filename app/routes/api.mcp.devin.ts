@@ -342,10 +342,12 @@ export async function action({ context, request }: ActionFunctionArgs) {
       emit: () => false,
     } as unknown as import('node:http').ServerResponse;
 
-    await transport.handleRequest(nodeRequest, nodeResponse, body);
-
-    await transport.close();
-    await server.close();
+    try {
+      await transport.handleRequest(nodeRequest, nodeResponse, body);
+    } finally {
+      await transport.close();
+      await server.close();
+    }
 
     return new Response(responseBody, {
       status: responseStatus,
