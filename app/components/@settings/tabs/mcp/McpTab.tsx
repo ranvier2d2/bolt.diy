@@ -1,9 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { classNames } from '~/utils/classNames';
 import type { MCPConfig } from '~/lib/services/mcpService';
 import { toast } from 'react-toastify';
 import { useMCPStore } from '~/lib/stores/mcp';
 import McpServerList from '~/components/@settings/tabs/mcp/McpServerList';
+
+const DEVIN_MCP_CONFIG = {
+  type: 'streamable-http' as const,
+  url: '/api/mcp/devin',
+};
 
 const EXAMPLE_MCP_CONFIG: MCPConfig = {
   mcpServers: {
@@ -40,6 +45,23 @@ export default function McpTab() {
   const [error, setError] = useState<string | null>(null);
   const [isCheckingServers, setIsCheckingServers] = useState(false);
   const [expandedServer, setExpandedServer] = useState<string | null>(null);
+  const [isDevinAvailable, setIsDevinAvailable] = useState(false);
+  const [isCheckingDevin, setIsCheckingDevin] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/mcp/devin-status')
+      .then((res) => res.json())
+      .then((data) => {
+        const typedData = data as { available: boolean };
+        setIsDevinAvailable(typedData.available);
+      })
+      .catch(() => {
+        setIsDevinAvailable(false);
+      })
+      .finally(() => {
+        setIsCheckingDevin(false);
+      });
+  }, []);
 
   useEffect(() => {
     if (!isInitialized) {
@@ -121,8 +143,93 @@ export default function McpTab() {
 
   const serverEntries = useMemo(() => Object.entries(serverTools), [serverTools]);
 
+  const isDevinEnabled = useMemo(() => {
+    try {
+      const config = JSON.parse(mcpConfigText) as MCPConfig;
+
+      return !!config.mcpServers?.devin;
+    } catch {
+      return false;
+    }
+  }, [mcpConfigText]);
+
+  const handleToggleDevin = useCallback(() => {
+    try {
+      const config = JSON.parse(mcpConfigText) as MCPConfig;
+
+      if (config.mcpServers?.devin) {
+        delete config.mcpServers.devin;
+      } else {
+        config.mcpServers = {
+          ...config.mcpServers,
+          devin: DEVIN_MCP_CONFIG,
+        };
+      }
+
+      setMCPConfigText(JSON.stringify(config, null, 2));
+      setError(null);
+    } catch (e) {
+      setError(`Invalid JSON format: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [mcpConfigText]);
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      <section aria-labelledby="presets-heading">
+        <h2 className="text-base font-medium text-bolt-elements-textPrimary mb-3">Presets</h2>
+        <div className="space-y-3">
+          <div
+            className={classNames(
+              'p-4 rounded-lg border',
+              'bg-bolt-elements-background-depth-2',
+              isDevinAvailable ? 'border-bolt-elements-borderColor' : 'border-bolt-elements-borderColor opacity-60',
+            )}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-bolt-elements-textPrimary">Devin</h3>
+                  {isCheckingDevin ? (
+                    <div className="i-svg-spinners:90-ring-with-bg w-3 h-3 text-bolt-elements-loader-progress animate-spin" />
+                  ) : isDevinAvailable ? (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-600 dark:text-green-400">
+                      Available
+                    </span>
+                  ) : (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-600 dark:text-yellow-400">
+                      Not Configured
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-bolt-elements-textSecondary mb-2">
+                  AI software engineer that can help with coding tasks, debugging, and building features. Spawn Devin
+                  sessions directly from chat.
+                </p>
+                {!isDevinAvailable && (
+                  <p className="text-xs text-bolt-elements-textTertiary">
+                    Set <code className="px-1 py-0.5 rounded bg-bolt-elements-background-depth-3">DEVIN_API_KEY</code>{' '}
+                    in your server environment to enable.
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={handleToggleDevin}
+                disabled={!isDevinAvailable}
+                className={classNames(
+                  'px-3 py-1.5 rounded-lg text-sm transition-all duration-200',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                  isDevinEnabled
+                    ? 'bg-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/30'
+                    : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:bg-bolt-elements-item-backgroundActive',
+                )}
+              >
+                {isDevinEnabled ? 'Disable' : 'Enable'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section aria-labelledby="server-status-heading">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-base font-medium text-bolt-elements-textPrimary">MCP Servers Configured</h2>{' '}
