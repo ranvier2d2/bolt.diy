@@ -103,8 +103,11 @@ export default class OpenAIProvider extends BaseProvider {
       // OpenAI provides context_length in their API response
       if (m.context_length) {
         contextWindow = m.context_length;
+      } else if (m.id?.includes('gpt-5.2-chat-latest') || m.id?.includes('gpt-5-chat-latest')) {
+        // GPT-5 chat snapshots have smaller context windows
+        contextWindow = 128000; // GPT-5 chat variants: 128k context
       } else if (m.id?.startsWith('gpt-5')) {
-        // TODO: GPT-5.x models have 400k context - adjust as new variants are released
+        // TODO: GPT-5.x API models have 400k context - adjust as new variants are released
         contextWindow = 400000; // GPT-5.x series: 400k context
       } else if (m.id?.includes('gpt-4o')) {
         contextWindow = 128000; // GPT-4o has 128k context
@@ -140,12 +143,16 @@ export default class OpenAIProvider extends BaseProvider {
 
       // Cap context window - GPT-5.x models support 400k, others cap at 128k
       const maxContextCap = m.id?.startsWith('gpt-5') ? 400000 : 128000;
+      const maxTokenAllowed = Math.min(contextWindow, maxContextCap);
+
+      // Ensure completion tokens never exceed context window
+      maxCompletionTokens = Math.min(maxCompletionTokens, maxTokenAllowed);
 
       return {
         name: m.id,
         label: `${m.id} (${Math.floor(contextWindow / 1000)}k context)`,
         provider: this.name,
-        maxTokenAllowed: Math.min(contextWindow, maxContextCap),
+        maxTokenAllowed,
         maxCompletionTokens,
       };
     });
