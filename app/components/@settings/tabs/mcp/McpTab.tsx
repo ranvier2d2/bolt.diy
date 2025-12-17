@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { classNames } from '~/utils/classNames';
 import type { MCPConfig } from '~/lib/services/mcpService';
 import { toast } from 'react-toastify';
 import { useMCPStore } from '~/lib/stores/mcp';
 import McpServerList from '~/components/@settings/tabs/mcp/McpServerList';
+
+const CLAUDE_CODE_SERVER_NAME = 'claude-code';
+const CLAUDE_CODE_CONFIG = {
+  type: 'stdio' as const,
+  command: 'claude',
+  args: ['mcp', 'serve'],
+};
 
 const EXAMPLE_MCP_CONFIG: MCPConfig = {
   mcpServers: {
@@ -121,11 +128,107 @@ export default function McpTab() {
 
   const serverEntries = useMemo(() => Object.entries(serverTools), [serverTools]);
 
+  const isClaudeCodeEnabled = useMemo(() => {
+    if (!parsedConfig?.mcpServers) {
+      return false;
+    }
+
+    return CLAUDE_CODE_SERVER_NAME in parsedConfig.mcpServers;
+  }, [parsedConfig]);
+
+  const handleClaudeCodeToggle = useCallback(() => {
+    if (!parsedConfig) {
+      return;
+    }
+
+    const newConfig = { ...parsedConfig };
+
+    if (isClaudeCodeEnabled) {
+      const { [CLAUDE_CODE_SERVER_NAME]: _, ...rest } = newConfig.mcpServers;
+      newConfig.mcpServers = rest;
+    } else {
+      newConfig.mcpServers = {
+        [CLAUDE_CODE_SERVER_NAME]: CLAUDE_CODE_CONFIG,
+        ...newConfig.mcpServers,
+      };
+    }
+
+    setMCPConfigText(JSON.stringify(newConfig, null, 2));
+  }, [parsedConfig]);
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      <section aria-labelledby="presets-heading">
+        <h2 id="presets-heading" className="text-base font-medium text-bolt-elements-textPrimary mb-3">
+          Presets
+        </h2>
+        <div className="space-y-3">
+          <div
+            className={classNames(
+              'p-4 rounded-lg border',
+              'bg-bolt-elements-background-depth-2',
+              'border-bolt-elements-borderColor',
+            )}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-medium text-bolt-elements-textPrimary">Claude Code</span>
+                  <span className="px-1.5 py-0.5 text-xs rounded bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary">
+                    stdio
+                  </span>
+                </div>
+                <p className="text-xs text-bolt-elements-textSecondary mb-2">
+                  Use Claude Code CLI as an MCP server. Requires Claude Code CLI installed locally and authenticated.
+                </p>
+                <p className="text-xs text-bolt-elements-textTertiary">
+                  Not used in CI; only runs in your local environment.
+                </p>
+              </div>
+              <button
+                onClick={handleClaudeCodeToggle}
+                disabled={!parsedConfig}
+                className={classNames(
+                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                  'transition-colors duration-200 ease-in-out',
+                  'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus focus:ring-offset-2',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                  isClaudeCodeEnabled
+                    ? 'bg-bolt-elements-item-backgroundAccent'
+                    : 'bg-bolt-elements-background-depth-4',
+                )}
+                role="switch"
+                aria-checked={isClaudeCodeEnabled}
+                aria-label="Toggle Claude Code MCP server"
+              >
+                <span
+                  className={classNames(
+                    'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0',
+                    'transition duration-200 ease-in-out',
+                    isClaudeCodeEnabled ? 'translate-x-5' : 'translate-x-0',
+                  )}
+                />
+              </button>
+            </div>
+            {isClaudeCodeEnabled && (
+              <div className="mt-3 pt-3 border-t border-bolt-elements-borderColor">
+                <p className="text-xs text-bolt-elements-textSecondary">
+                  <span className="font-medium">Command:</span>{' '}
+                  <code className="px-1 py-0.5 rounded bg-bolt-elements-background-depth-3 font-mono">
+                    claude mcp serve
+                  </code>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section aria-labelledby="server-status-heading">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-base font-medium text-bolt-elements-textPrimary">MCP Servers Configured</h2>{' '}
+          <h2 id="server-status-heading" className="text-base font-medium text-bolt-elements-textPrimary">
+            MCP Servers Configured
+          </h2>{' '}
           <button
             onClick={checkServerAvailability}
             disabled={isCheckingServers || !parsedConfig || serverEntries.length === 0}
