@@ -48,6 +48,19 @@ export default class OpenAIProvider extends BaseProvider {
 
     // o1-mini: 128k context, 65k output limit (reasoning model)
     { name: 'o1-mini', label: 'o1-mini', provider: 'OpenAI', maxTokenAllowed: 128000, maxCompletionTokens: 65000 },
+
+    /*
+     * GPT-5.2: 400k context, 128k output limit (reasoning model)
+     * TODO: Uses Chat Completions API (v1/chat/completions) - Responses API (v1/responses) support can be added later
+     * NOTE: As a reasoning model, this uses maxCompletionTokens instead of maxTokens (handled by isReasoningModel check)
+     */
+    {
+      name: 'gpt-5.2-2025-12-11',
+      label: 'GPT-5.2',
+      provider: 'OpenAI',
+      maxTokenAllowed: 400000,
+      maxCompletionTokens: 128000,
+    },
   ];
 
   async getDynamicModels(
@@ -90,6 +103,12 @@ export default class OpenAIProvider extends BaseProvider {
       // OpenAI provides context_length in their API response
       if (m.context_length) {
         contextWindow = m.context_length;
+      } else if (m.id?.includes('gpt-5.2-chat-latest') || m.id?.includes('gpt-5-chat-latest')) {
+        // GPT-5 chat snapshots have smaller context windows
+        contextWindow = 128000; // GPT-5 chat variants: 128k context
+      } else if (m.id?.startsWith('gpt-5')) {
+        // TODO: GPT-5.x API models have 400k context - adjust as new variants are released
+        contextWindow = 400000; // GPT-5.x series: 400k context
       } else if (m.id?.includes('gpt-4o')) {
         contextWindow = 128000; // GPT-4o has 128k context
       } else if (m.id?.includes('gpt-4-turbo') || m.id?.includes('gpt-4-1106')) {
@@ -111,6 +130,9 @@ export default class OpenAIProvider extends BaseProvider {
         maxCompletionTokens = 32000; // Other o1 models: 32K limit
       } else if (m.id?.includes('o3') || m.id?.includes('o4')) {
         maxCompletionTokens = 100000; // o3/o4 models: 100K output limit
+      } else if (m.id?.startsWith('gpt-5')) {
+        // TODO: GPT-5.x are reasoning models with 128k output - adjust as new variants are released
+        maxCompletionTokens = 128000; // GPT-5.x series: 128K output limit (reasoning model)
       } else if (m.id?.includes('gpt-4o')) {
         maxCompletionTokens = 4096; // GPT-4o standard: 4K (64K with long output mode)
       } else if (m.id?.includes('gpt-4')) {
@@ -119,11 +141,18 @@ export default class OpenAIProvider extends BaseProvider {
         maxCompletionTokens = 4096; // GPT-3.5-turbo: 4K output limit
       }
 
+      // Cap context window - GPT-5.x models support 400k, others cap at 128k
+      const maxContextCap = m.id?.startsWith('gpt-5') ? 400000 : 128000;
+      const maxTokenAllowed = Math.min(contextWindow, maxContextCap);
+
+      // Ensure completion tokens never exceed context window
+      maxCompletionTokens = Math.min(maxCompletionTokens, maxTokenAllowed);
+
       return {
         name: m.id,
         label: `${m.id} (${Math.floor(contextWindow / 1000)}k context)`,
         provider: this.name,
-        maxTokenAllowed: Math.min(contextWindow, 128000), // Cap at 128k for safety
+        maxTokenAllowed,
         maxCompletionTokens,
       };
     });

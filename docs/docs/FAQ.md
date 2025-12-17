@@ -146,6 +146,24 @@ MCP extends bolt.diy's AI capabilities with external tools:
     3. Configure server endpoints and authentication
     4. Enable/disable servers as needed
 
+    **Using the Claude Code Preset:**
+    bolt.diy includes a built-in preset for Claude Code CLI as an MCP server:
+
+    1. **Install Claude Code CLI** on your local machine:
+        - Visit [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code) for installation instructions
+        - Run `claude --version` to verify installation
+    2. **Authenticate Claude Code CLI**:
+        - Run `claude` in your terminal and follow the authentication prompts
+        - This uses your Anthropic account credentials
+    3. **Enable the preset in bolt.diy**:
+        - Go to Settings → MCP tab
+        - Find the "Presets" section at the top
+        - Toggle on "Claude Code" to enable it
+        - Click "Save Configuration" to apply changes
+
+    !!! note "Local Environment Only"
+        The Claude Code preset requires the CLI to be installed locally. It will not work in CI/CD environments or cloud deployments.
+
     **Available MCP Capabilities:**
     - Database connections and queries
     - File system operations
