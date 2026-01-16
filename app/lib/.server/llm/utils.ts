@@ -87,6 +87,7 @@ export function extractCurrentContext(messages: ChatMessage[]) {
   let codeContext: ContextAnnotation | undefined;
 
   const annotations = getMessageAnnotations(lastAssistantMessage);
+
   if (!annotations.length) {
     return { summary: undefined, codeContext: undefined };
   }

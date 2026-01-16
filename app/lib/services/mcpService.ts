@@ -1,12 +1,11 @@
 import {
-  experimental_createMCPClient,
   type ToolSet,
   convertToModelMessages,
   type DynamicToolUIPart,
   type ToolUIPart,
   type UIMessageStreamWriter,
 } from 'ai';
-import { Experimental_StdioMCPTransport } from 'ai/mcp-stdio';
+import { createMCPClient, Experimental_StdioMCPTransport } from '@ai-sdk/mcp';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { z } from 'zod';
 import type { ToolCallAnnotation } from '~/types/context';
@@ -148,7 +147,7 @@ export class MCPService {
       return mcpServerConfigSchema.parse(config);
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        const errorMessages = validationError.errors.map((err) => `${err.path.join('.')}: ${err.message}`).join('; ');
+        const errorMessages = validationError.issues.map((err) => `${err.path.join('.')}: ${err.message}`).join('; ');
         throw new Error(`Invalid configuration for server "${serverName}": ${errorMessages}`);
       }
 
@@ -170,7 +169,7 @@ export class MCPService {
   ): Promise<MCPClient> {
     logger.debug(`Creating Streamable-HTTP client for ${serverName} with URL: ${config.url}`);
 
-    const client = await experimental_createMCPClient({
+    const client = await createMCPClient({
       transport: new StreamableHTTPClientTransport(new URL(config.url), {
         requestInit: {
           headers: config.headers,
@@ -184,7 +183,7 @@ export class MCPService {
   private async _createSSEClient(serverName: string, config: SSEServerConfig): Promise<MCPClient> {
     logger.debug(`Creating SSE client for ${serverName} with URL: ${config.url}`);
 
-    const client = await experimental_createMCPClient({
+    const client = await createMCPClient({
       transport: config,
     });
 
@@ -196,7 +195,7 @@ export class MCPService {
       `Creating STDIO client for '${serverName}' with command: '${config.command}' ${config.args?.join(' ') || ''}`,
     );
 
-    const client = await experimental_createMCPClient({ transport: new Experimental_StdioMCPTransport(config) });
+    const client = await createMCPClient({ transport: new Experimental_StdioMCPTransport(config) });
 
     return Object.assign(client, { serverName });
   }
@@ -351,10 +350,7 @@ export class MCPService {
     return toolName in this._tools;
   }
 
-  processToolCall(
-    toolCall: ToolCall,
-    dataStream: UIMessageStreamWriter<ChatMessage>,
-  ): ToolCallAnnotation | undefined {
+  processToolCall(toolCall: ToolCall, dataStream: UIMessageStreamWriter<ChatMessage>): ToolCallAnnotation | undefined {
     const { toolCallId, toolName } = toolCall;
 
     if (this.isValidToolName(toolName)) {
@@ -374,6 +370,7 @@ export class MCPService {
           type: 'data-toolCall',
           data: annotation,
         });
+
         return annotation;
       }
     }

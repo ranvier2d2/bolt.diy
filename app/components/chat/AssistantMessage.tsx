@@ -109,9 +109,9 @@ export const AssistantMessage = memo(
       totalTokens: number;
     } = filteredAnnotations.find((annotation) => annotation.type === 'usage')?.value;
 
-    const toolInvocations = parts?.filter(
-      (part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-'),
-    ) as Array<ToolUIPart | DynamicToolUIPart> | undefined;
+    const toolInvocations = parts?.filter((part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-')) as
+      | Array<ToolUIPart | DynamicToolUIPart>
+      | undefined;
     const toolCallAnnotations = filteredAnnotations.filter(
       (annotation) => annotation.type === 'toolCall',
     ) as ToolCallAnnotation[];

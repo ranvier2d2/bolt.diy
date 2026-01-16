@@ -45,6 +45,7 @@ export function UserMessage({ content, parts }: UserMessageProps) {
 
       const legacyPart = part as FileUIPart & { mimeType?: string; data?: string };
       const mediaType = part.mediaType ?? legacyPart.mimeType ?? '';
+
       return mediaType.startsWith('image/');
     }) || [];
 
@@ -119,9 +120,17 @@ export function UserMessage({ content, parts }: UserMessageProps) {
           }
 
           return (
-            <div key={index} className="relative flex rounded-lg border border-bolt-elements-borderColor overflow-hidden">
+            <div
+              key={index}
+              className="relative flex rounded-lg border border-bolt-elements-borderColor overflow-hidden"
+            >
               <div className="h-16 w-16 bg-transparent outline-none">
-                <img src={src} alt={`Image ${index + 1}`} className="h-full w-full rounded-lg" style={{ objectFit: 'fill' }} />
+                <img
+                  src={src}
+                  alt={`Image ${index + 1}`}
+                  className="h-full w-full rounded-lg"
+                  style={{ objectFit: 'fill' }}
+                />
               </div>
             </div>
           );

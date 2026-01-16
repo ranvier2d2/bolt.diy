@@ -87,105 +87,109 @@ interface ToolInvocationsProps {
 
 export const ToolInvocations = memo(
   ({ toolInvocations, toolCallAnnotations, addToolApprovalResponse }: ToolInvocationsProps) => {
-  const theme = useStore(themeStore);
-  const [showDetails, setShowDetails] = useState(false);
+    const theme = useStore(themeStore);
+    const [showDetails, setShowDetails] = useState(false);
 
-  const toggleDetails = () => {
-    setShowDetails((prev) => !prev);
-  };
+    const toggleDetails = () => {
+      setShowDetails((prev) => !prev);
+    };
 
-  const toolCalls = useMemo(() => toolInvocations.filter((inv) => isToolCallState(inv.state)), [toolInvocations]);
+    const toolCalls = useMemo(() => toolInvocations.filter((inv) => isToolCallState(inv.state)), [toolInvocations]);
 
-  const toolResults = useMemo(() => toolInvocations.filter((inv) => isToolResultState(inv.state)), [toolInvocations]);
+    const toolResults = useMemo(() => toolInvocations.filter((inv) => isToolResultState(inv.state)), [toolInvocations]);
 
-  const hasToolCalls = toolCalls.length > 0;
-  const hasToolResults = toolResults.length > 0;
+    const hasToolCalls = toolCalls.length > 0;
+    const hasToolResults = toolResults.length > 0;
 
-  if (!hasToolCalls && !hasToolResults) {
-    return null;
-  }
+    if (!hasToolCalls && !hasToolResults) {
+      return null;
+    }
 
-  return (
-    <div className="tool-invocation border border-bolt-elements-borderColor flex flex-col overflow-hidden rounded-lg w-full transition-border duration-150">
-      <div className="flex">
-        <button
-          className="flex items-stretch bg-bolt-elements-background-depth-2 hover:bg-bolt-elements-artifacts-backgroundHover w-full overflow-hidden"
-          onClick={toggleDetails}
-          aria-label={showDetails ? 'Collapse details' : 'Expand details'}
-        >
-          <div className="p-2.5">
-            <div className="i-ph:wrench text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors"></div>
-          </div>
-          <div className="p-2.5 w-full text-left">
-            <div className="w-full text-bolt-elements-textPrimary font-medium leading-5 text-sm">
-              MCP Tool Invocations{' '}
-              {hasToolResults && (
-                <span className="w-full w-full text-bolt-elements-textSecondary text-xs mt-0.5">
-                  ({toolResults.length} tool{hasToolResults ? 's' : ''} used)
-                </span>
-              )}
+    return (
+      <div className="tool-invocation border border-bolt-elements-borderColor flex flex-col overflow-hidden rounded-lg w-full transition-border duration-150">
+        <div className="flex">
+          <button
+            className="flex items-stretch bg-bolt-elements-background-depth-2 hover:bg-bolt-elements-artifacts-backgroundHover w-full overflow-hidden"
+            onClick={toggleDetails}
+            aria-label={showDetails ? 'Collapse details' : 'Expand details'}
+          >
+            <div className="p-2.5">
+              <div className="i-ph:wrench text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors"></div>
             </div>
-          </div>
-        </button>
-        <AnimatePresence>
-          {hasToolResults && (
-            <motion.button
-              initial={{ width: 0 }}
-              animate={{ width: 'auto' }}
-              exit={{ width: 0 }}
-              transition={{ duration: 0.15, ease: cubicEasingFn }}
-              className="bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover"
-              onClick={toggleDetails}
-            >
-              <div className="p-2">
-                <div
-                  className={`${showDetails ? 'i-ph:caret-up-bold' : 'i-ph:caret-down-bold'} text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors`}
-                ></div>
+            <div className="p-2.5 w-full text-left">
+              <div className="w-full text-bolt-elements-textPrimary font-medium leading-5 text-sm">
+                MCP Tool Invocations{' '}
+                {hasToolResults && (
+                  <span className="w-full w-full text-bolt-elements-textSecondary text-xs mt-0.5">
+                    ({toolResults.length} tool{hasToolResults ? 's' : ''} used)
+                  </span>
+                )}
               </div>
-            </motion.button>
+            </div>
+          </button>
+          <AnimatePresence>
+            {hasToolResults && (
+              <motion.button
+                initial={{ width: 0 }}
+                animate={{ width: 'auto' }}
+                exit={{ width: 0 }}
+                transition={{ duration: 0.15, ease: cubicEasingFn }}
+                className="bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover"
+                onClick={toggleDetails}
+              >
+                <div className="p-2">
+                  <div
+                    className={`${showDetails ? 'i-ph:caret-up-bold' : 'i-ph:caret-down-bold'} text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors`}
+                  ></div>
+                </div>
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+        <AnimatePresence>
+          {hasToolCalls && (
+            <motion.div
+              className="details"
+              initial={{ height: 0 }}
+              animate={{ height: 'auto' }}
+              exit={{ height: '0px' }}
+              transition={{ duration: 0.15 }}
+            >
+              <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
+
+              <div className="px-3 py-3 text-left bg-bolt-elements-background-depth-2">
+                <ToolCallsList
+                  toolInvocations={toolCalls}
+                  toolCallAnnotations={toolCallAnnotations}
+                  addToolApprovalResponse={addToolApprovalResponse}
+                  theme={theme}
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {hasToolResults && showDetails && (
+            <motion.div
+              className="details"
+              initial={{ height: 0 }}
+              animate={{ height: 'auto' }}
+              exit={{ height: '0px' }}
+              transition={{ duration: 0.15 }}
+            >
+              <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
+
+              <div className="p-5 text-left bg-bolt-elements-actions-background">
+                <ToolResultsList
+                  toolInvocations={toolResults}
+                  toolCallAnnotations={toolCallAnnotations}
+                  theme={theme}
+                />
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
-      <AnimatePresence>
-        {hasToolCalls && (
-          <motion.div
-            className="details"
-            initial={{ height: 0 }}
-            animate={{ height: 'auto' }}
-            exit={{ height: '0px' }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
-
-            <div className="px-3 py-3 text-left bg-bolt-elements-background-depth-2">
-              <ToolCallsList
-                toolInvocations={toolCalls}
-                toolCallAnnotations={toolCallAnnotations}
-                addToolApprovalResponse={addToolApprovalResponse}
-                theme={theme}
-              />
-            </div>
-          </motion.div>
-        )}
-
-        {hasToolResults && showDetails && (
-          <motion.div
-            className="details"
-            initial={{ height: 0 }}
-            animate={{ height: 'auto' }}
-            exit={{ height: '0px' }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
-
-            <div className="p-5 text-left bg-bolt-elements-actions-background">
-              <ToolResultsList toolInvocations={toolResults} toolCallAnnotations={toolCallAnnotations} theme={theme} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+    );
   },
 );
 

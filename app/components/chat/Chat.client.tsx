@@ -180,37 +180,37 @@ export const ChatImpl = memo(
       stop,
       addToolApprovalResponse,
     } = useChat<ChatMessage>({
-        transport,
-        messages: normalizedInitialMessages,
-        onError: (e) => {
-          setFakeLoading(false);
-          handleError(e, 'chat');
-        },
-        onFinish: ({ message }) => {
-          const usageAnnotation = getMessageAnnotations(message).find(
-            (annotation) => annotation && typeof annotation === 'object' && (annotation as any).type === 'usage',
-          ) as { value?: { completionTokens: number; promptTokens: number; totalTokens: number } } | undefined;
-          const usage = usageAnnotation?.value;
-          setChatData(undefined);
+      transport,
+      messages: normalizedInitialMessages,
+      onError: (e) => {
+        setFakeLoading(false);
+        handleError(e, 'chat');
+      },
+      onFinish: ({ message }) => {
+        const usageAnnotation = getMessageAnnotations(message).find(
+          (annotation) => annotation && typeof annotation === 'object' && (annotation as any).type === 'usage',
+        ) as { value?: { completionTokens: number; promptTokens: number; totalTokens: number } } | undefined;
+        const usage = usageAnnotation?.value;
+        setChatData(undefined);
 
-          if (usage) {
-            console.log('Token usage:', usage);
-            logStore.logProvider('Chat response completed', {
-              component: 'Chat',
-              action: 'response',
-              model,
-              provider: provider.name,
-              usage,
-              messageLength: getMessageText(message).length,
-            });
-          }
+        if (usage) {
+          console.log('Token usage:', usage);
+          logStore.logProvider('Chat response completed', {
+            component: 'Chat',
+            action: 'response',
+            model,
+            provider: provider.name,
+            usage,
+            messageLength: getMessageText(message).length,
+          });
+        }
 
-          logger.debug('Finished streaming');
-        },
-        onData: (dataPart) => {
-          setChatData((prev) => [...(prev ?? []), dataPart.data as JSONValue]);
-        },
-      });
+        logger.debug('Finished streaming');
+      },
+      onData: (dataPart) => {
+        setChatData((prev) => [...(prev ?? []), dataPart.data as JSONValue]);
+      },
+    });
     const isLoading = status === 'streaming' || status === 'submitted';
     useEffect(() => {
       const prompt = searchParams.get('prompt');
