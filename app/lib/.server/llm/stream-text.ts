@@ -105,8 +105,10 @@ export async function streamText(props: {
     } else if (typeof newMessage.content === 'string') {
       newMessage.parts = [{ type: 'text', text: newMessage.content }];
     } else if (Array.isArray(newMessage.content)) {
-      // Map our legacy `content` array into valid AI SDK UI parts.
-      // Currently we only support text here; other legacy item types are ignored.
+      /*
+       * Map our legacy `content` array into valid AI SDK UI parts.
+       * Currently we only support text here; other legacy item types are ignored.
+       */
       newMessage.parts = newMessage.content
         .filter((item) => item.type === 'text')
         .map((item) => ({

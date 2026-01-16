@@ -164,6 +164,7 @@ export const Markdown = memo(
                     console.log('Message appended:', message);
                   } else if (type === 'implement' && append && setChatMode) {
                     setChatMode('build');
+
                     const text = `[Model: ${model}]\n\n[Provider: ${provider?.name}]\n\n${message}`;
                     append({
                       id: `quick-action-implement-${Date.now()}`,
@@ -195,7 +196,7 @@ export const Markdown = memo(
           return <button {...props}>{children}</button>;
         },
       } satisfies Components;
-    }, []);
+    }, [append, model, provider, setChatMode]);
 
     return (
       <ReactMarkdown

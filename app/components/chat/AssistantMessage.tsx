@@ -1,12 +1,6 @@
 import { memo, Fragment } from 'react';
 import { Markdown } from './Markdown';
-import type {
-  DynamicToolUIPart,
-  JSONValue,
-  ToolUIPart,
-  UIMessagePart,
-  UITools,
-} from 'ai';
+import type { DynamicToolUIPart, JSONValue, ToolUIPart, UIMessagePart, UITools } from 'ai';
 import Popover from '~/components/ui/Popover';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { WORK_DIR } from '~/utils/constants';

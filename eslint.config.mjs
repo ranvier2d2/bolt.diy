@@ -63,10 +63,4 @@ export default [
       'bolt/no-createdAt-property': 'error',
     },
   },
-  {
-    files: ['**/*.tsx'],
-    rules: {
-      ...getNamingConventionRule({}, true),
-    },
-  },
 ];

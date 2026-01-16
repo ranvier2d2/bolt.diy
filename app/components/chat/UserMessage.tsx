@@ -6,11 +6,7 @@ import { MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
 import { Markdown } from './Markdown';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
-import type {
-  FileUIPart,
-  UIMessagePart,
-  UITools,
-} from 'ai';
+import type { FileUIPart, UIMessagePart, UITools } from 'ai';
 import type { ChatDataTypes } from '~/types/chat';
 
 interface UserMessageProps {

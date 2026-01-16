@@ -121,7 +121,7 @@ export const ToolInvocations = memo(
                 MCP Tool Invocations{' '}
                 {hasToolResults && (
                   <span className="w-full text-bolt-elements-textSecondary text-xs mt-0.5">
-                    ({toolResults.length} tool{hasToolResults ? 's' : ''} used)
+                    ({toolResults.length} tool{toolResults.length !== 1 ? 's' : ''} used)
                   </span>
                 )}
               </div>
