@@ -102,8 +102,21 @@ export async function streamText(props: {
       newMessage.parts = message.parts.map((part) =>
         part.type === 'text' ? { ...part, text: sanitizeText(part.text) } : part,
       );
-    } else if (newMessage.content) {
+    } else if (typeof newMessage.content === 'string') {
       newMessage.parts = [{ type: 'text', text: newMessage.content }];
+    } else if (Array.isArray(newMessage.content)) {
+      newMessage.parts = newMessage.content.map((item) => {
+        if (item.type === 'text') {
+          return {
+            type: 'text',
+            text: sanitizeText(item.text ?? ''),
+          };
+        }
+
+        return {
+          ...item,
+        } as typeof item;
+      });
     }
 
     return newMessage;

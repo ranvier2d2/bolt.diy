@@ -331,7 +331,7 @@ export const ChatImpl = memo(
           provider: provider.name,
           errorType,
         });
-        setData([]);
+        setChatData([]);
       },
       [provider.name, stop],
     );

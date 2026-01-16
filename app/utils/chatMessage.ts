@@ -20,7 +20,10 @@ export function getMessageText(message: Pick<ChatMessage, 'content' | 'parts'>):
   }
 
   if (Array.isArray(content)) {
-    return content.find((item) => item.type === 'text')?.text ?? '';
+    return content
+      .filter((item) => item.type === 'text')
+      .map((item) => item.text ?? '')
+      .join('');
   }
 
   return getTextFromParts(message.parts);
