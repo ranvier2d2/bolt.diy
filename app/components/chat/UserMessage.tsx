@@ -7,18 +7,29 @@ import { Markdown } from './Markdown';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
 import type {
-  TextUIPart,
-  ReasoningUIPart,
-  ToolInvocationUIPart,
-  SourceUIPart,
+  DynamicToolUIPart,
   FileUIPart,
+  ReasoningUIPart,
+  SourceDocumentUIPart,
+  SourceUrlUIPart,
   StepStartUIPart,
-} from '@ai-sdk/ui-utils';
+  TextUIPart,
+  ToolUIPart,
+} from 'ai';
 
 interface UserMessageProps {
   content: string | Array<{ type: string; text?: string; image?: string }>;
   parts:
-    | (TextUIPart | ReasoningUIPart | ToolInvocationUIPart | SourceUIPart | FileUIPart | StepStartUIPart)[]
+    | (
+        | TextUIPart
+        | ReasoningUIPart
+        | ToolUIPart
+        | DynamicToolUIPart
+        | SourceUrlUIPart
+        | SourceDocumentUIPart
+        | FileUIPart
+        | StepStartUIPart
+      )[]
     | undefined;
 }
 
@@ -27,9 +38,15 @@ export function UserMessage({ content, parts }: UserMessageProps) {
 
   // Extract images from parts - look for file parts with image mime types
   const images =
-    parts?.filter(
-      (part): part is FileUIPart => part.type === 'file' && 'mimeType' in part && part.mimeType.startsWith('image/'),
-    ) || [];
+    parts?.filter((part): part is FileUIPart => {
+      if (part.type !== 'file') {
+        return false;
+      }
+
+      const legacyPart = part as FileUIPart & { mimeType?: string; data?: string };
+      const mediaType = part.mediaType ?? legacyPart.mimeType ?? '';
+      return mediaType.startsWith('image/');
+    }) || [];
 
   if (Array.isArray(content)) {
     const textItem = content.find((item) => item.type === 'text');
@@ -57,15 +74,28 @@ export function UserMessage({ content, parts }: UserMessageProps) {
         </div>
         <div className="flex flex-col gap-4 bg-accent-500/10 backdrop-blur-sm p-3 py-3 w-auto rounded-lg mr-auto">
           {textContent && <Markdown html>{textContent}</Markdown>}
-          {images.map((item, index) => (
-            <img
-              key={index}
-              src={`data:${item.mimeType};base64,${item.data}`}
-              alt={`Image ${index + 1}`}
-              className="max-w-full h-auto rounded-lg"
-              style={{ maxHeight: '512px', objectFit: 'contain' }}
-            />
-          ))}
+          {images.map((item, index) => {
+            const legacyItem = item as FileUIPart & { mimeType?: string; data?: string };
+            const src =
+              item.url ||
+              (legacyItem.data && (legacyItem.mimeType || item.mediaType)
+                ? `data:${legacyItem.mimeType || item.mediaType};base64,${legacyItem.data}`
+                : '');
+
+            if (!src) {
+              return null;
+            }
+
+            return (
+              <img
+                key={index}
+                src={src}
+                alt={`Image ${index + 1}`}
+                className="max-w-full h-auto rounded-lg"
+                style={{ maxHeight: '512px', objectFit: 'contain' }}
+              />
+            );
+          })}
         </div>
       </div>
     );
@@ -76,19 +106,26 @@ export function UserMessage({ content, parts }: UserMessageProps) {
   return (
     <div className="flex flex-col bg-accent-500/10 backdrop-blur-sm px-5 p-3.5 w-auto rounded-lg ml-auto">
       <div className="flex gap-3.5 mb-4">
-        {images.map((item, index) => (
-          <div className="relative flex rounded-lg border border-bolt-elements-borderColor overflow-hidden">
-            <div className="h-16 w-16 bg-transparent outline-none">
-              <img
-                key={index}
-                src={`data:${item.mimeType};base64,${item.data}`}
-                alt={`Image ${index + 1}`}
-                className="h-full w-full rounded-lg"
-                style={{ objectFit: 'fill' }}
-              />
+        {images.map((item, index) => {
+          const legacyItem = item as FileUIPart & { mimeType?: string; data?: string };
+          const src =
+            item.url ||
+            (legacyItem.data && (legacyItem.mimeType || item.mediaType)
+              ? `data:${legacyItem.mimeType || item.mediaType};base64,${legacyItem.data}`
+              : '');
+
+          if (!src) {
+            return null;
+          }
+
+          return (
+            <div key={index} className="relative flex rounded-lg border border-bolt-elements-borderColor overflow-hidden">
+              <div className="h-16 w-16 bg-transparent outline-none">
+                <img src={src} alt={`Image ${index + 1}`} className="h-full w-full rounded-lg" style={{ objectFit: 'fill' }} />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <Markdown html>{textContent}</Markdown>
     </div>

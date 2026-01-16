@@ -1,4 +1,4 @@
-import { convertToCoreMessages, streamText as _streamText, type Message } from 'ai';
+import { convertToModelMessages, streamText as _streamText } from 'ai';
 import { MAX_TOKENS, PROVIDER_COMPLETION_LIMITS, isReasoningModel, type FileMap } from './constants';
 import { getSystemPrompt } from '~/lib/common/prompts/prompts';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, MODIFICATIONS_TAG_NAME, PROVIDER_LIST, WORK_DIR } from '~/utils/constants';
@@ -11,7 +11,10 @@ import { createFilesContext, extractPropertiesFromMessage } from './utils';
 import { discussPrompt } from '~/lib/common/prompts/discuss-prompt';
 import type { DesignScheme } from '~/types/design-scheme';
 
-export type Messages = Message[];
+import type { ChatMessage } from '~/types/chat';
+import { getMessageText } from '~/utils/chatMessage';
+
+export type Messages = ChatMessage[];
 
 export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0], 'model'> {
   supabaseConnection?: {
@@ -52,7 +55,7 @@ function sanitizeText(text: string): string {
 }
 
 export async function streamText(props: {
-  messages: Omit<Message, 'id'>[];
+  messages: Omit<ChatMessage, 'id'>[];
   env?: Env;
   options?: StreamingOptions;
   apiKeys?: Record<string, string>;
@@ -91,7 +94,7 @@ export async function streamText(props: {
       currentProvider = provider;
       newMessage.content = sanitizeText(content);
     } else if (message.role == 'assistant') {
-      newMessage.content = sanitizeText(message.content);
+      newMessage.content = sanitizeText(getMessageText(message));
     }
 
     // Sanitize all text parts in parts array, if present
@@ -99,6 +102,21 @@ export async function streamText(props: {
       newMessage.parts = message.parts.map((part) =>
         part.type === 'text' ? { ...part, text: sanitizeText(part.text) } : part,
       );
+    } else if (typeof newMessage.content === 'string') {
+      newMessage.parts = [{ type: 'text', text: newMessage.content }];
+    } else if (Array.isArray(newMessage.content)) {
+      newMessage.parts = newMessage.content.map((item) => {
+        if (item.type === 'text') {
+          return {
+            type: 'text',
+            text: sanitizeText(item.text ?? ''),
+          };
+        }
+
+        return {
+          ...item,
+        } as typeof item;
+      });
     }
 
     return newMessage;
@@ -273,6 +291,8 @@ export async function streamText(props: {
     ),
   );
 
+  const modelMessages = await convertToModelMessages(processedMessages.map(({ id, ...rest }) => rest));
+
   const streamParams = {
     model: provider.getModelInstance({
       model: modelDetails.name,
@@ -282,7 +302,7 @@ export async function streamText(props: {
     }),
     system: chatMode === 'build' ? systemPrompt : discussPrompt(),
     ...tokenParams,
-    messages: convertToCoreMessages(processedMessages as any),
+    messages: modelMessages,
     ...filteredOptions,
 
     // Set temperature to 1 for reasoning models (required by OpenAI API)

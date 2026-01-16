@@ -1,4 +1,4 @@
-import type { Message } from 'ai';
+import type { ChatMessage } from '~/types/chat';
 import { generateId } from './fileUtils';
 
 export interface ProjectCommands {
@@ -107,7 +107,7 @@ export async function detectProjectCommands(files: FileContent[]): Promise<Proje
   return { type: '', setupCommand: '', followupMessage: '' };
 }
 
-export function createCommandsMessage(commands: ProjectCommands): Message | null {
+export function createCommandsMessage(commands: ProjectCommands): ChatMessage | null {
   if (!commands.setupCommand && !commands.startCommand) {
     return null;
   }
@@ -125,13 +125,16 @@ export function createCommandsMessage(commands: ProjectCommands): Message | null
 `;
   }
 
-  return {
-    role: 'assistant',
-    content: `
+  const content = `
 ${commands.followupMessage ? `\n\n${commands.followupMessage}` : ''}
 <boltArtifact id="project-setup" title="Project Setup">
 ${commandString}
-</boltArtifact>`,
+</boltArtifact>`;
+
+  return {
+    role: 'assistant',
+    content,
+    parts: [{ type: 'text', text: content }],
     id: generateId(),
     createdAt: new Date(),
   };

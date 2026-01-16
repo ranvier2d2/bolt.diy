@@ -1,8 +1,8 @@
 import Cookies from 'js-cookie';
-import { type Message } from 'ai';
+import type { ChatMessage } from '~/types/chat';
 import { getAllChats, deleteChat } from '~/lib/persistence/chats';
 
-interface ExtendedMessage extends Message {
+interface ExtendedMessage extends ChatMessage {
   name?: string;
   function_call?: any;
   timestamp?: number;
@@ -34,6 +34,7 @@ export class ImportExportService {
           id: msg.id,
           role: msg.role,
           content: msg.content,
+          parts: msg.parts,
           name: msg.name,
           function_call: msg.function_call,
           timestamp: msg.timestamp,

@@ -1,5 +1,5 @@
 import { useSearchParams } from '@remix-run/react';
-import { generateId, type Message } from 'ai';
+import { generateId } from 'ai';
 import ignore from 'ignore';
 import { useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -10,6 +10,9 @@ import { useChatHistory } from '~/lib/persistence';
 import { createCommandsMessage, detectProjectCommands, escapeBoltTags } from '~/utils/projectCommands';
 import { LoadingOverlay } from '~/components/ui/LoadingOverlay';
 import { toast } from 'react-toastify';
+import type { ChatMessage } from '~/types/chat';
+
+const createTextParts = (text: string) => [{ type: 'text' as const, text }];
 
 const IGNORE_PATTERNS = [
   'node_modules/**',
@@ -72,7 +75,7 @@ export function GitUrlImport() {
           const commands = await detectProjectCommands(fileContents);
           const commandsMessage = createCommandsMessage(commands);
 
-          const filesMessage: Message = {
+          const filesMessage: ChatMessage = {
             role: 'assistant',
             content: `Cloning the repo ${repoUrl} into ${workdir}
 <boltArtifact id="imported-files" title="Git Cloned Files"  type="bundled">
@@ -86,6 +89,17 @@ ${escapeBoltTags(file.content)}
   .join('\n')}
 </boltArtifact>`,
             id: generateId(),
+            parts: createTextParts(`Cloning the repo ${repoUrl} into ${workdir}
+<boltArtifact id="imported-files" title="Git Cloned Files"  type="bundled">
+${fileContents
+  .map(
+    (file) =>
+      `<boltAction type="file" filePath="${file.path}">
+${escapeBoltTags(file.content)}
+</boltAction>`,
+  )
+  .join('\n')}
+</boltArtifact>`),
             createdAt: new Date(),
           };
 
@@ -96,6 +110,7 @@ ${escapeBoltTags(file.content)}
               role: 'user',
               id: generateId(),
               content: 'Setup the codebase and Start the application',
+              parts: createTextParts('Setup the codebase and Start the application'),
             });
             messages.push(commandsMessage);
           }

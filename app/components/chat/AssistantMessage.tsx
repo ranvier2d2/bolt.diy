@@ -1,22 +1,25 @@
 import { memo, Fragment } from 'react';
 import { Markdown } from './Markdown';
-import type { JSONValue } from 'ai';
+import type {
+  DynamicToolUIPart,
+  FileUIPart,
+  JSONValue,
+  ReasoningUIPart,
+  SourceDocumentUIPart,
+  SourceUrlUIPart,
+  StepStartUIPart,
+  TextUIPart,
+  ToolUIPart,
+} from 'ai';
 import Popover from '~/components/ui/Popover';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { WORK_DIR } from '~/utils/constants';
 import WithTooltip from '~/components/ui/Tooltip';
-import type { Message } from 'ai';
 import type { ProviderInfo } from '~/types/model';
-import type {
-  TextUIPart,
-  ReasoningUIPart,
-  ToolInvocationUIPart,
-  SourceUIPart,
-  FileUIPart,
-  StepStartUIPart,
-} from '@ai-sdk/ui-utils';
 import { ToolInvocations } from './ToolInvocations';
 import type { ToolCallAnnotation } from '~/types/context';
+import type { ChatMessage } from '~/types/chat';
+import { getMessageAnnotations } from '~/utils/chatMessage';
 
 interface AssistantMessageProps {
   content: string;
@@ -24,15 +27,24 @@ interface AssistantMessageProps {
   messageId?: string;
   onRewind?: (messageId: string) => void;
   onFork?: (messageId: string) => void;
-  append?: (message: Message) => void;
+  append?: (message: ChatMessage) => void;
   chatMode?: 'discuss' | 'build';
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
   provider?: ProviderInfo;
   parts:
-    | (TextUIPart | ReasoningUIPart | ToolInvocationUIPart | SourceUIPart | FileUIPart | StepStartUIPart)[]
+    | (
+        | TextUIPart
+        | ReasoningUIPart
+        | ToolUIPart
+        | DynamicToolUIPart
+        | SourceUrlUIPart
+        | SourceDocumentUIPart
+        | FileUIPart
+        | StepStartUIPart
+      )[]
     | undefined;
-  addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
+  addToolApprovalResponse: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
 }
 
 function openArtifactInWorkbench(filePath: string) {
@@ -72,9 +84,9 @@ export const AssistantMessage = memo(
     model,
     provider,
     parts,
-    addToolResult,
+    addToolApprovalResponse,
   }: AssistantMessageProps) => {
-    const filteredAnnotations = (annotations?.filter(
+    const filteredAnnotations = (getMessageAnnotations({ annotations })?.filter(
       (annotation: JSONValue) =>
         annotation && typeof annotation === 'object' && Object.keys(annotation).includes('type'),
     ) || []) as { type: string; value: any } & { [key: string]: any }[];
@@ -97,7 +109,9 @@ export const AssistantMessage = memo(
       totalTokens: number;
     } = filteredAnnotations.find((annotation) => annotation.type === 'usage')?.value;
 
-    const toolInvocations = parts?.filter((part) => part.type === 'tool-invocation');
+    const toolInvocations = parts?.filter(
+      (part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-'),
+    ) as Array<ToolUIPart | DynamicToolUIPart> | undefined;
     const toolCallAnnotations = filteredAnnotations.filter(
       (annotation) => annotation.type === 'toolCall',
     ) as ToolCallAnnotation[];
@@ -183,7 +197,7 @@ export const AssistantMessage = memo(
           <ToolInvocations
             toolInvocations={toolInvocations}
             toolCallAnnotations={toolCallAnnotations}
-            addToolResult={addToolResult}
+            addToolApprovalResponse={addToolApprovalResponse}
           />
         )}
       </div>
