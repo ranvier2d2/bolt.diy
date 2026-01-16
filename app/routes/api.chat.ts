@@ -1,5 +1,5 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { createDataStream, generateId } from 'ai';
+import { createUIMessageStream, generateId } from 'ai';
 import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS, type FileMap } from '~/lib/.server/llm/constants';
 import { CONTINUE_PROMPT } from '~/lib/common/prompts/prompts';
 import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
@@ -76,8 +76,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const stream = new SwitchableStream();
 
   const cumulativeUsage = {
-    completionTokens: 0,
-    promptTokens: 0,
+    outputTokens: 0,
+    inputTokens: 0,
     totalTokens: 0,
   };
   const encoder: TextEncoder = new TextEncoder();
@@ -90,7 +90,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
     let lastChunk: string | undefined = undefined;
 
-    const dataStream = createDataStream({
+    const dataStream = createUIMessageStream({
       async execute(dataStream) {
         streamRecovery.startMonitoring();
 
@@ -107,13 +107,17 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
         if (filePaths.length > 0 && contextOptimization) {
           logger.debug('Generating Chat Summary');
-          dataStream.writeData({
-            type: 'progress',
-            label: 'summary',
-            status: 'in-progress',
-            order: progressCounter++,
-            message: 'Analysing Request',
-          } satisfies ProgressAnnotation);
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'progress',
+              label: 'summary',
+              status: 'in-progress',
+              order: progressCounter++,
+              message: 'Analysing Request',
+            } satisfies ProgressAnnotation]
+          });
 
           // Create a summary of the chat
           console.log(`Messages count: ${processedMessages.length}`);
@@ -128,35 +132,47 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             onFinish(resp) {
               if (resp.usage) {
                 logger.debug('createSummary token usage', JSON.stringify(resp.usage));
-                cumulativeUsage.completionTokens += resp.usage.completionTokens || 0;
-                cumulativeUsage.promptTokens += resp.usage.promptTokens || 0;
+                cumulativeUsage.outputTokens += resp.usage.outputTokens || 0;
+                cumulativeUsage.inputTokens += resp.usage.inputTokens || 0;
                 cumulativeUsage.totalTokens += resp.usage.totalTokens || 0;
               }
             },
           });
-          dataStream.writeData({
-            type: 'progress',
-            label: 'summary',
-            status: 'complete',
-            order: progressCounter++,
-            message: 'Analysis Complete',
-          } satisfies ProgressAnnotation);
+          dataStream.write({
+            'type': 'data',
 
-          dataStream.writeMessageAnnotation({
-            type: 'chatSummary',
-            summary,
-            chatId: processedMessages.slice(-1)?.[0]?.id,
-          } as ContextAnnotation);
+            'value': [{
+              type: 'progress',
+              label: 'summary',
+              status: 'complete',
+              order: progressCounter++,
+              message: 'Analysis Complete',
+            } satisfies ProgressAnnotation]
+          });
+
+          dataStream.write({
+            'type': 'message-annotations',
+
+            'value': [{
+              type: 'chatSummary',
+              summary,
+              chatId: processedMessages.slice(-1)?.[0]?.id,
+            } as ContextAnnotation]
+          });
 
           // Update context buffer
           logger.debug('Updating Context Buffer');
-          dataStream.writeData({
-            type: 'progress',
-            label: 'context',
-            status: 'in-progress',
-            order: progressCounter++,
-            message: 'Determining Files to Read',
-          } satisfies ProgressAnnotation);
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'progress',
+              label: 'context',
+              status: 'in-progress',
+              order: progressCounter++,
+              message: 'Determining Files to Read',
+            } satisfies ProgressAnnotation]
+          });
 
           // Select context files
           console.log(`Messages count: ${processedMessages.length}`);
@@ -172,8 +188,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             onFinish(resp) {
               if (resp.usage) {
                 logger.debug('selectContext token usage', JSON.stringify(resp.usage));
-                cumulativeUsage.completionTokens += resp.usage.completionTokens || 0;
-                cumulativeUsage.promptTokens += resp.usage.promptTokens || 0;
+                cumulativeUsage.outputTokens += resp.usage.outputTokens || 0;
+                cumulativeUsage.inputTokens += resp.usage.inputTokens || 0;
                 cumulativeUsage.totalTokens += resp.usage.totalTokens || 0;
               }
             },
@@ -183,26 +199,34 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             logger.debug(`files in context : ${JSON.stringify(Object.keys(filteredFiles))}`);
           }
 
-          dataStream.writeMessageAnnotation({
-            type: 'codeContext',
-            files: Object.keys(filteredFiles).map((key) => {
-              let path = key;
+          dataStream.write({
+            'type': 'message-annotations',
 
-              if (path.startsWith(WORK_DIR)) {
-                path = path.replace(WORK_DIR, '');
-              }
+            'value': [{
+              type: 'codeContext',
+              files: Object.keys(filteredFiles).map((key) => {
+                let path = key;
 
-              return path;
-            }),
-          } as ContextAnnotation);
+                if (path.startsWith(WORK_DIR)) {
+                  path = path.replace(WORK_DIR, '');
+                }
 
-          dataStream.writeData({
-            type: 'progress',
-            label: 'context',
-            status: 'complete',
-            order: progressCounter++,
-            message: 'Code Files Selected',
-          } satisfies ProgressAnnotation);
+                return path;
+              }),
+            } as ContextAnnotation]
+          });
+
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'progress',
+              label: 'context',
+              status: 'complete',
+              order: progressCounter++,
+              message: 'Code Files Selected',
+            } satisfies ProgressAnnotation]
+          });
 
           // logger.debug('Code Files Selected');
         }
@@ -222,27 +246,35 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             logger.debug('usage', JSON.stringify(usage));
 
             if (usage) {
-              cumulativeUsage.completionTokens += usage.completionTokens || 0;
-              cumulativeUsage.promptTokens += usage.promptTokens || 0;
+              cumulativeUsage.outputTokens += usage.outputTokens || 0;
+              cumulativeUsage.inputTokens += usage.inputTokens || 0;
               cumulativeUsage.totalTokens += usage.totalTokens || 0;
             }
 
             if (finishReason !== 'length') {
-              dataStream.writeMessageAnnotation({
-                type: 'usage',
-                value: {
-                  completionTokens: cumulativeUsage.completionTokens,
-                  promptTokens: cumulativeUsage.promptTokens,
-                  totalTokens: cumulativeUsage.totalTokens,
-                },
+              dataStream.write({
+                'type': 'message-annotations',
+
+                'value': [{
+                  type: 'usage',
+                  value: {
+                    outputTokens: cumulativeUsage.outputTokens,
+                    inputTokens: cumulativeUsage.inputTokens,
+                    totalTokens: cumulativeUsage.totalTokens,
+                  },
+                }]
               });
-              dataStream.writeData({
-                type: 'progress',
-                label: 'response',
-                status: 'complete',
-                order: progressCounter++,
-                message: 'Response Generated',
-              } satisfies ProgressAnnotation);
+              dataStream.write({
+                'type': 'data',
+
+                'value': [{
+                  type: 'progress',
+                  label: 'response',
+                  status: 'complete',
+                  order: progressCounter++,
+                  message: 'Response Generated',
+                } satisfies ProgressAnnotation]
+              });
               await new Promise((resolve) => setTimeout(resolve, 0));
 
               // stream.close();
@@ -282,7 +314,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               messageSliceId,
             });
 
-            result.mergeIntoDataStream(dataStream);
+            result.mergeIntoUIMessageStream(dataStream);
 
             (async () => {
               for await (const part of result.fullStream) {
@@ -299,13 +331,17 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           },
         };
 
-        dataStream.writeData({
-          type: 'progress',
-          label: 'response',
-          status: 'in-progress',
-          order: progressCounter++,
-          message: 'Generating Response',
-        } satisfies ProgressAnnotation);
+        dataStream.write({
+          'type': 'data',
+
+          'value': [{
+            type: 'progress',
+            label: 'response',
+            status: 'in-progress',
+            order: progressCounter++,
+            message: 'Generating Response',
+          } satisfies ProgressAnnotation]
+        });
 
         const result = await streamText({
           messages: [...processedMessages],
@@ -344,7 +380,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           }
           streamRecovery.stop();
         })();
-        result.mergeIntoDataStream(dataStream);
+        result.mergeIntoUIMessageStream(dataStream);
       },
       onError: (error: any) => {
         // Provide more specific error messages for common issues

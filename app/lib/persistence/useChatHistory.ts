@@ -1,7 +1,7 @@
 import { useLoaderData, useNavigate, useSearchParams } from '@remix-run/react';
 import { useState, useEffect, useCallback } from 'react';
 import { atom } from 'nanostores';
-import { generateId, type JSONValue, type Message } from 'ai';
+import { generateId, type JSONValue, type UIMessage } from 'ai';
 import { toast } from 'react-toastify';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { logStore } from '~/lib/stores/logs'; // Import logStore
@@ -27,7 +27,7 @@ export interface ChatHistoryItem {
   id: string;
   urlId?: string;
   description?: string;
-  messages: Message[];
+  messages: UIMessage[];
   timestamp: string;
   metadata?: IChatMetadata;
 }
@@ -44,8 +44,8 @@ export function useChatHistory() {
   const { id: mixedId } = useLoaderData<{ id?: string }>();
   const [searchParams] = useSearchParams();
 
-  const [archivedMessages, setArchivedMessages] = useState<Message[]>([]);
-  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
+  const [archivedMessages, setArchivedMessages] = useState<UIMessage[]>([]);
+  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [ready, setReady] = useState<boolean>(false);
   const [urlId, setUrlId] = useState<string | undefined>();
 
@@ -92,7 +92,7 @@ export function useChatHistory() {
             }
 
             let filteredMessages = storedMessages.messages.slice(startingIdx + 1, endingIdx);
-            let archivedMessages: Message[] = [];
+            let archivedMessages: UIMessage[] = [];
 
             if (startingIdx >= 0) {
               archivedMessages = storedMessages.messages.slice(0, startingIdx + 1);
@@ -273,7 +273,7 @@ ${value.content}
         console.error(error);
       }
     },
-    storeMessageHistory: async (messages: Message[]) => {
+    storeMessageHistory: async (messages: UIMessage[]) => {
       if (!db || messages.length === 0) {
         return;
       }
@@ -356,7 +356,7 @@ ${value.content}
         console.log(error);
       }
     },
-    importChat: async (description: string, messages: Message[], metadata?: IChatMetadata) => {
+    importChat: async (description: string, messages: UIMessage[], metadata?: IChatMetadata) => {
       if (!db) {
         return;
       }

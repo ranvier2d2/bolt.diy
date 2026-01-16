@@ -5,16 +5,9 @@ import Popover from '~/components/ui/Popover';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { WORK_DIR } from '~/utils/constants';
 import WithTooltip from '~/components/ui/Tooltip';
-import type { Message } from 'ai';
+import type { UIMessage } from 'ai';
 import type { ProviderInfo } from '~/types/model';
-import type {
-  TextUIPart,
-  ReasoningUIPart,
-  ToolInvocationUIPart,
-  SourceUIPart,
-  FileUIPart,
-  StepStartUIPart,
-} from '@ai-sdk/ui-utils';
+import type { DynamicToolUIPart, ToolUIPart } from 'ai';
 import { ToolInvocations } from './ToolInvocations';
 import type { ToolCallAnnotation } from '~/types/context';
 
@@ -24,15 +17,13 @@ interface AssistantMessageProps {
   messageId?: string;
   onRewind?: (messageId: string) => void;
   onFork?: (messageId: string) => void;
-  append?: (message: Message) => void;
+  append?: (message: UIMessage) => void;
   chatMode?: 'discuss' | 'build';
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
   provider?: ProviderInfo;
-  parts:
-    | (TextUIPart | ReasoningUIPart | ToolInvocationUIPart | SourceUIPart | FileUIPart | StepStartUIPart)[]
-    | undefined;
-  addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
+  parts: UIMessage['parts'] | undefined;
+  addToolApprovalResponse: ({ id, approved, reason }: { id: string; approved: boolean; reason?: string }) => void;
 }
 
 function openArtifactInWorkbench(filePath: string) {
@@ -72,7 +63,7 @@ export const AssistantMessage = memo(
     model,
     provider,
     parts,
-    addToolResult,
+    addToolApprovalResponse,
   }: AssistantMessageProps) => {
     const filteredAnnotations = (annotations?.filter(
       (annotation: JSONValue) =>
@@ -91,13 +82,21 @@ export const AssistantMessage = memo(
       codeContext = filteredAnnotations.find((annotation) => annotation.type === 'codeContext')?.files;
     }
 
-    const usage: {
-      completionTokens: number;
-      promptTokens: number;
-      totalTokens: number;
-    } = filteredAnnotations.find((annotation) => annotation.type === 'usage')?.value;
+    const usage = filteredAnnotations.find((annotation) => annotation.type === 'usage')?.value as
+      | {
+          completionTokens?: number;
+          promptTokens?: number;
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        }
+      | undefined;
+    const promptTokens = usage?.inputTokens ?? usage?.promptTokens;
+    const completionTokens = usage?.outputTokens ?? usage?.completionTokens;
 
-    const toolInvocations = parts?.filter((part) => part.type === 'tool-invocation');
+    const toolInvocations = parts?.filter(
+      (part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-'),
+    ) as Array<ToolUIPart | DynamicToolUIPart> | undefined;
     const toolCallAnnotations = filteredAnnotations.filter(
       (annotation) => annotation.type === 'toolCall',
     ) as ToolCallAnnotation[];
@@ -148,7 +147,7 @@ export const AssistantMessage = memo(
             <div className="flex w-full items-center justify-between">
               {usage && (
                 <div>
-                  Tokens: {usage.totalTokens} (prompt: {usage.promptTokens}, completion: {usage.completionTokens})
+                  Tokens: {usage.totalTokens} (prompt: {promptTokens}, completion: {completionTokens})
                 </div>
               )}
               {(onRewind || onFork) && messageId && (
@@ -183,7 +182,7 @@ export const AssistantMessage = memo(
           <ToolInvocations
             toolInvocations={toolInvocations}
             toolCallAnnotations={toolCallAnnotations}
-            addToolResult={addToolResult}
+            addToolApprovalResponse={addToolApprovalResponse}
           />
         )}
       </div>
