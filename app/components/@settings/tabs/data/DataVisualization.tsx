@@ -70,7 +70,7 @@ export function DataVisualization({ chats }: DataVisualizationProps) {
             typeof message.content === 'string'
               ? message.content
               : Array.isArray(message.content)
-                ? message.content.find((item) => item.type === 'text')?.text ?? ''
+                ? (message.content.find((item) => item.type === 'text')?.text ?? '')
                 : '';
           const providerMatch = contentText.match(/provider:\s*([\w-]+)/i);
           const provider = providerMatch ? providerMatch[1] : 'unknown';

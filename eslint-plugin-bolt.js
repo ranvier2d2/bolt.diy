@@ -66,7 +66,10 @@ export default {
         return {
           JSXAttribute(node) {
             if (node.name.name === 'className' && node.value && node.value.type === 'Literal') {
-              const classes = node.value.value.split(/\s+/);
+              const classes = node.value.value
+                .split(/\s+/)
+                .map((s) => s.trim())
+                .filter(Boolean);
               const duplicates = classes.filter((item, index) => classes.indexOf(item) !== index);
               
               if (duplicates.length > 0) {
@@ -99,13 +102,19 @@ export default {
         },
       },
       create(context) {
+        const sourceCode = context.getSourceCode();
+
         return {
           Literal(node) {
             if (typeof node.value === 'string' && node.value.includes('app/routes/api/chat.ts')) {
               context.report({
                 node,
                 messageId: 'legacyRoute',
-                fix: (fixer) => fixer.replaceText(node, node.value.replace('app/routes/api/chat.ts', 'app/routes/api.chat.ts')),
+                fix: (fixer) =>
+                  fixer.replaceText(
+                    node,
+                    sourceCode.getText(node).replace('app/routes/api/chat.ts', 'app/routes/api.chat.ts'),
+                  ),
               });
             }
           },
@@ -128,13 +137,34 @@ export default {
         },
       },
       create(context) {
+        const sourceCode = context.getSourceCode();
+
         return {
           Property(node) {
-            if (node.key.name === 'createdAt' && node.value && node.value.type === 'NewExpression') {
+            if (
+              node.key &&
+              node.key.type === 'Identifier' &&
+              node.key.name === 'createdAt' &&
+              node.value &&
+              node.value.type === 'NewExpression'
+            ) {
               context.report({
                 node,
                 messageId: 'deprecatedCreatedAt',
-                fix: (fixer) => fixer.remove(node),
+                fix: (fixer) => {
+                  const tokenAfter = sourceCode.getTokenAfter(node);
+                  const tokenBefore = sourceCode.getTokenBefore(node);
+
+                  if (tokenAfter && tokenAfter.value === ',') {
+                    return fixer.removeRange([node.range[0], tokenAfter.range[1]]);
+                  }
+
+                  if (tokenBefore && tokenBefore.value === ',') {
+                    return fixer.removeRange([tokenBefore.range[0], node.range[1]]);
+                  }
+
+                  return fixer.remove(node);
+                },
               });
             }
           },
