@@ -1,7 +1,8 @@
-import type { TextUIPart, UIMessagePart } from 'ai';
+import type { TextUIPart, UIMessagePart, UITools } from 'ai';
 import type { ChatMessage } from '~/types/chat';
+import type { ChatDataTypes } from '~/types/chat';
 
-export function getTextFromParts(parts?: UIMessagePart[]): string {
+export function getTextFromParts(parts?: UIMessagePart<ChatDataTypes, UITools>[]): string {
   if (!parts) {
     return '';
   }
@@ -29,6 +30,9 @@ export function getMessageText(message: Pick<ChatMessage, 'content' | 'parts'>):
   return getTextFromParts(message.parts);
 }
 
-export function getMessageAnnotations(message: { annotations?: ChatMessage['annotations']; metadata?: ChatMessage['metadata'] }) {
+export function getMessageAnnotations(message: {
+  annotations?: ChatMessage['annotations'];
+  metadata?: ChatMessage['metadata'];
+}) {
   return message.annotations ?? message.metadata?.annotations ?? [];
 }

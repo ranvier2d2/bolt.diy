@@ -1,16 +1,20 @@
 import {
-  experimental_createMCPClient,
   type ToolSet,
   convertToModelMessages,
   type DynamicToolUIPart,
   type ToolUIPart,
   type UIMessageStreamWriter,
+  type UITools,
+  type UIMessagePart,
+  type TypedToolCall,
 } from 'ai';
-import { Experimental_StdioMCPTransport } from 'ai/mcp-stdio';
+import { createMCPClient } from '@ai-sdk/mcp';
+import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { z } from 'zod';
 import type { ToolCallAnnotation } from '~/types/context';
 import type { ChatMessage } from '~/types/chat';
+import type { ChatDataTypes } from '~/types/chat';
 import { TOOL_EXECUTION_ERROR, TOOL_NO_EXECUTE_FUNCTION } from '~/utils/constants';
 import { createScopedLogger } from '~/utils/logger';
 
@@ -22,7 +26,7 @@ export const stdioServerConfigSchema = z
     command: z.string().min(1, 'Command cannot be empty'),
     args: z.array(z.string()).optional(),
     cwd: z.string().optional(),
-    env: z.record(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
   })
   .transform((data) => ({
     ...data,
@@ -34,7 +38,7 @@ export const sseServerConfigSchema = z
   .object({
     type: z.enum(['sse']).optional(),
     url: z.string().url('URL must be a valid URL format'),
-    headers: z.record(z.string()).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
   })
   .transform((data) => ({
     ...data,
@@ -46,7 +50,7 @@ export const streamableHTTPServerConfigSchema = z
   .object({
     type: z.enum(['streamable-http']).optional(),
     url: z.string().url('URL must be a valid URL format'),
-    headers: z.record(z.string()).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
   })
   .transform((data) => ({
     ...data,
@@ -78,7 +82,6 @@ export type ToolCall = {
   type: 'tool-call';
   toolCallId: string;
   toolName: string;
-  args: Record<string, unknown>;
 };
 
 export type MCPServerTools = Record<string, MCPServer>;
@@ -148,7 +151,7 @@ export class MCPService {
       return mcpServerConfigSchema.parse(config);
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        const errorMessages = validationError.errors.map((err) => `${err.path.join('.')}: ${err.message}`).join('; ');
+        const errorMessages = validationError.issues.map((err) => `${err.path.join('.')}: ${err.message}`).join('; ');
         throw new Error(`Invalid configuration for server "${serverName}": ${errorMessages}`);
       }
 
@@ -170,7 +173,7 @@ export class MCPService {
   ): Promise<MCPClient> {
     logger.debug(`Creating Streamable-HTTP client for ${serverName} with URL: ${config.url}`);
 
-    const client = await experimental_createMCPClient({
+    const client = await createMCPClient({
       transport: new StreamableHTTPClientTransport(new URL(config.url), {
         requestInit: {
           headers: config.headers,
@@ -184,7 +187,7 @@ export class MCPService {
   private async _createSSEClient(serverName: string, config: SSEServerConfig): Promise<MCPClient> {
     logger.debug(`Creating SSE client for ${serverName} with URL: ${config.url}`);
 
-    const client = await experimental_createMCPClient({
+    const client = await createMCPClient({
       transport: config,
     });
 
@@ -196,7 +199,7 @@ export class MCPService {
       `Creating STDIO client for '${serverName}' with command: '${config.command}' ${config.args?.join(' ') || ''}`,
     );
 
-    const client = await experimental_createMCPClient({ transport: new Experimental_StdioMCPTransport(config) });
+    const client = await createMCPClient({ transport: new Experimental_StdioMCPTransport(config) });
 
     return Object.assign(client, { serverName });
   }
@@ -225,6 +228,7 @@ export class MCPService {
     } else if (validatedConfig.type === 'sse') {
       return await this._createSSEClient(serverName, serverConfig as SSEServerConfig);
     } else {
+      // @ai-sdk/mcp expects transport type 'http' (not 'streamable-http')
       return await this._createStreamableHTTPClient(serverName, serverConfig as StreamableHTTPServerConfig);
     }
   }
@@ -352,7 +356,7 @@ export class MCPService {
   }
 
   processToolCall(
-    toolCall: ToolCall,
+    toolCall: Pick<ToolCall, 'toolCallId' | 'toolName'> | TypedToolCall<ToolSet>,
     dataStream: UIMessageStreamWriter<ChatMessage>,
   ): ToolCallAnnotation | undefined {
     const { toolCallId, toolName } = toolCall;
@@ -374,6 +378,7 @@ export class MCPService {
           type: 'data-toolCall',
           data: annotation,
         });
+
         return annotation;
       }
     }
@@ -386,13 +391,13 @@ export class MCPService {
     dataStream: UIMessageStreamWriter<ChatMessage>,
   ): Promise<ChatMessage[]> {
     const lastMessage = messages[messages.length - 1];
-    const parts = lastMessage.parts;
+    const parts = lastMessage.parts as UIMessagePart<ChatDataTypes, UITools>[] | undefined;
 
     if (!parts) {
       return messages;
     }
 
-    const processedParts = await Promise.all(
+    const processedParts = (await Promise.all(
       parts.map(async (part) => {
         const isToolPart = part.type === 'dynamic-tool' || part.type.startsWith('tool-');
 
@@ -411,7 +416,7 @@ export class MCPService {
         if (!toolPart.approval?.approved) {
           return {
             ...toolPart,
-            state: 'output-denied',
+            state: 'output-denied' as const,
             approval: {
               id: toolPart.approval?.id ?? toolCallId,
               approved: false,
@@ -456,7 +461,7 @@ export class MCPService {
 
         return {
           ...toolPart,
-          state: 'output-available',
+          state: 'output-available' as const,
           output,
           approval: {
             id: toolPart.approval?.id ?? toolCallId,
@@ -465,7 +470,7 @@ export class MCPService {
           },
         };
       }),
-    );
+    )) as UIMessagePart<ChatDataTypes, UITools>[];
 
     // Finally return the processed messages
     return [...messages.slice(0, -1), { ...lastMessage, parts: processedParts }];

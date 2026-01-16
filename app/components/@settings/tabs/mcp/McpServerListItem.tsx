@@ -22,8 +22,9 @@ export default function McpServerListItem({ toolName, toolSchema }: McpToolProps
     return null;
   }
 
-  const parameters = (toolSchema.parameters as ToolParameters)?.jsonSchema.properties || {};
-  const requiredParams = (toolSchema.parameters as ToolParameters)?.jsonSchema.required || [];
+  const inputSchema = (toolSchema as any).inputSchema as ToolParameters | undefined;
+  const parameters = inputSchema?.jsonSchema.properties || {};
+  const requiredParams = inputSchema?.jsonSchema.required || [];
 
   return (
     <div className="mt-2 ml-4 p-3 rounded-md bg-bolt-elements-background-depth-2 text-xs">

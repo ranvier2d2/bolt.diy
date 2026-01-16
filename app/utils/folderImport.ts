@@ -64,7 +64,6 @@ ${escapeBoltTags(file.content)}
 </boltArtifact>`,
       },
     ],
-    createdAt: new Date(),
   };
 
   const userMessage: ChatMessage = {
@@ -72,7 +71,6 @@ ${escapeBoltTags(file.content)}
     id: generateId(),
     content: `Import the "${folderName}" folder`,
     parts: [{ type: 'text', text: `Import the "${folderName}" folder` }],
-    createdAt: new Date(),
   };
 
   const messages = [userMessage, filesMessage];

@@ -136,7 +136,6 @@ ${commandString}
     content,
     parts: [{ type: 'text', text: content }],
     id: generateId(),
-    createdAt: new Date(),
   };
 }
 

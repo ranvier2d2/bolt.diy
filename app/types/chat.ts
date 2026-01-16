@@ -12,8 +12,7 @@ export type ChatDataTypes = {
 
 type BaseChatMessage = UIMessage<ChatMessageMetadata, ChatDataTypes>;
 
-export type ChatMessage = Omit<BaseChatMessage, 'parts'> & {
-  parts?: BaseChatMessage['parts'];
+export type ChatMessage = BaseChatMessage & {
   content?: string | Array<{ type: string; text?: string; image?: string }>;
   annotations?: JSONValue[];
 };

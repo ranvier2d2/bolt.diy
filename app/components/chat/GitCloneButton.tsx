@@ -161,7 +161,6 @@ ${escapeBoltTags(file.content)}
   )
   .join('\n')}
 </boltArtifact>`),
-          createdAt: new Date(),
         };
 
         const messages = [filesMessage];

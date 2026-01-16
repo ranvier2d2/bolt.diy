@@ -7,30 +7,15 @@ import { Markdown } from './Markdown';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
 import type {
-  DynamicToolUIPart,
   FileUIPart,
-  ReasoningUIPart,
-  SourceDocumentUIPart,
-  SourceUrlUIPart,
-  StepStartUIPart,
-  TextUIPart,
-  ToolUIPart,
+  UIMessagePart,
+  UITools,
 } from 'ai';
+import type { ChatDataTypes } from '~/types/chat';
 
 interface UserMessageProps {
   content: string | Array<{ type: string; text?: string; image?: string }>;
-  parts:
-    | (
-        | TextUIPart
-        | ReasoningUIPart
-        | ToolUIPart
-        | DynamicToolUIPart
-        | SourceUrlUIPart
-        | SourceDocumentUIPart
-        | FileUIPart
-        | StepStartUIPart
-      )[]
-    | undefined;
+  parts: UIMessagePart<ChatDataTypes, UITools>[] | undefined;
 }
 
 export function UserMessage({ content, parts }: UserMessageProps) {
@@ -45,6 +30,7 @@ export function UserMessage({ content, parts }: UserMessageProps) {
 
       const legacyPart = part as FileUIPart & { mimeType?: string; data?: string };
       const mediaType = part.mediaType ?? legacyPart.mimeType ?? '';
+
       return mediaType.startsWith('image/');
     }) || [];
 
@@ -119,9 +105,17 @@ export function UserMessage({ content, parts }: UserMessageProps) {
           }
 
           return (
-            <div key={index} className="relative flex rounded-lg border border-bolt-elements-borderColor overflow-hidden">
+            <div
+              key={index}
+              className="relative flex rounded-lg border border-bolt-elements-borderColor overflow-hidden"
+            >
               <div className="h-16 w-16 bg-transparent outline-none">
-                <img src={src} alt={`Image ${index + 1}`} className="h-full w-full rounded-lg" style={{ objectFit: 'fill' }} />
+                <img
+                  src={src}
+                  alt={`Image ${index + 1}`}
+                  className="h-full w-full rounded-lg"
+                  style={{ objectFit: 'fill' }}
+                />
               </div>
             </div>
           );

@@ -22,7 +22,7 @@ interface MessagesProps {
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
   provider?: ProviderInfo;
-  addToolApprovalResponse: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
+  addToolApprovalResponse: ({ id, approved, reason }: { id: string; approved: boolean; reason?: string }) => void;
 }
 
 export const Messages = forwardRef<HTMLDivElement, MessagesProps>(

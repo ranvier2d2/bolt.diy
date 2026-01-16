@@ -1,6 +1,7 @@
 import blitzPlugin from '@blitz/eslint-plugin';
 import { jsFileExtensions } from '@blitz/eslint-plugin/dist/configs/javascript.js';
 import { getNamingConventionRule, tsFileExtensions } from '@blitz/eslint-plugin/dist/configs/typescript.js';
+import boltPlugin from './eslint-plugin-bolt.js';
 
 export default [
   {
@@ -8,6 +9,9 @@ export default [
   },
   ...blitzPlugin.configs.recommended(),
   {
+    plugins: {
+      bolt: boltPlugin,
+    },
     rules: {
       '@blitz/catch-error-name': 'off',
       '@typescript-eslint/no-this-alias': 'off',
@@ -52,6 +56,17 @@ export default [
           ],
         },
       ],
+      // Custom bolt.diy rules to prevent regressions
+      'bolt/no-language-model-v1': 'error',
+      'bolt/no-duplicate-css-classes': 'error',
+      'bolt/no-legacy-route-paths': 'error',
+      'bolt/no-createdAt-property': 'error',
+    },
+  },
+  {
+    files: ['**/*.tsx'],
+    rules: {
+      ...getNamingConventionRule({}, true),
     },
   },
 ];

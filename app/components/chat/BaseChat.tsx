@@ -81,7 +81,7 @@ interface BaseChatProps {
   setDesignScheme?: (scheme: DesignScheme) => void;
   selectedElement?: ElementInfo | null;
   setSelectedElement?: (element: ElementInfo | null) => void;
-  addToolApprovalResponse?: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
+  addToolApprovalResponse?: ({ id, approved, reason }: { id: string; approved: boolean; reason?: string }) => void;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(

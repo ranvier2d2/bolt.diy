@@ -25,7 +25,12 @@ dist-ssr
 /.history
 /.cache
 /build
+!/build/
+!/build/server.d.ts
 functions/build/
+.claude/
+.kimojo/
+code_exploration_tools.md
 .env.local
 .env
 .dev.vars
@@ -44,5 +49,5 @@ app/commit.json
 changelogUI.md
 docs/instructions/Roadmap.md
 .cursorrules
-*.md
+#*.md
 .qodo
