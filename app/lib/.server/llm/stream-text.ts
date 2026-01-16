@@ -16,7 +16,7 @@ import { getMessageText } from '~/utils/chatMessage';
 
 export type Messages = ChatMessage[];
 
-export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0], 'model'> {
+export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0], 'model' | 'messages' | 'prompt'> {
   supabaseConnection?: {
     isConnected: boolean;
     hasSelectedProject: boolean;
@@ -105,18 +105,19 @@ export async function streamText(props: {
     } else if (typeof newMessage.content === 'string') {
       newMessage.parts = [{ type: 'text', text: newMessage.content }];
     } else if (Array.isArray(newMessage.content)) {
-      newMessage.parts = newMessage.content.map((item) => {
-        if (item.type === 'text') {
-          return {
-            type: 'text',
-            text: sanitizeText(item.text ?? ''),
-          };
-        }
+      // Map our legacy `content` array into valid AI SDK UI parts.
+      // Currently we only support text here; other legacy item types are ignored.
+      newMessage.parts = newMessage.content
+        .filter((item) => item.type === 'text')
+        .map((item) => ({
+          type: 'text' as const,
+          text: sanitizeText(item.text ?? ''),
+        }));
 
-        return {
-          ...item,
-        } as typeof item;
-      });
+      // Ensure parts is never empty to satisfy UIMessage constraints
+      if (newMessage.parts.length === 0) {
+        newMessage.parts = [{ type: 'text', text: '' }];
+      }
     }
 
     return newMessage;
@@ -291,7 +292,7 @@ export async function streamText(props: {
     ),
   );
 
-  const modelMessages = await convertToModelMessages(processedMessages.map(({ id, ...rest }) => rest));
+  const modelMessages = await convertToModelMessages(processedMessages);
 
   const streamParams = {
     model: provider.getModelInstance({

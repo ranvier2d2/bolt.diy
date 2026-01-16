@@ -2,14 +2,10 @@ import { memo, Fragment } from 'react';
 import { Markdown } from './Markdown';
 import type {
   DynamicToolUIPart,
-  FileUIPart,
   JSONValue,
-  ReasoningUIPart,
-  SourceDocumentUIPart,
-  SourceUrlUIPart,
-  StepStartUIPart,
-  TextUIPart,
   ToolUIPart,
+  UIMessagePart,
+  UITools,
 } from 'ai';
 import Popover from '~/components/ui/Popover';
 import { workbenchStore } from '~/lib/stores/workbench';
@@ -19,7 +15,10 @@ import type { ProviderInfo } from '~/types/model';
 import { ToolInvocations } from './ToolInvocations';
 import type { ToolCallAnnotation } from '~/types/context';
 import type { ChatMessage } from '~/types/chat';
+import type { ChatDataTypes } from '~/types/chat';
 import { getMessageAnnotations } from '~/utils/chatMessage';
+
+type ToolInvocationPart = ToolUIPart | DynamicToolUIPart;
 
 interface AssistantMessageProps {
   content: string;
@@ -32,19 +31,8 @@ interface AssistantMessageProps {
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
   provider?: ProviderInfo;
-  parts:
-    | (
-        | TextUIPart
-        | ReasoningUIPart
-        | ToolUIPart
-        | DynamicToolUIPart
-        | SourceUrlUIPart
-        | SourceDocumentUIPart
-        | FileUIPart
-        | StepStartUIPart
-      )[]
-    | undefined;
-  addToolApprovalResponse: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
+  parts: UIMessagePart<ChatDataTypes, UITools>[] | undefined;
+  addToolApprovalResponse: ({ id, approved, reason }: { id: string; approved: boolean; reason?: string }) => void;
 }
 
 function openArtifactInWorkbench(filePath: string) {
@@ -109,9 +97,9 @@ export const AssistantMessage = memo(
       totalTokens: number;
     } = filteredAnnotations.find((annotation) => annotation.type === 'usage')?.value;
 
-    const toolInvocations = parts?.filter((part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-')) as
-      | Array<ToolUIPart | DynamicToolUIPart>
-      | undefined;
+    const toolInvocations = parts?.filter(
+      (part): part is ToolInvocationPart => part.type === 'dynamic-tool' || part.type.startsWith('tool-'),
+    );
     const toolCallAnnotations = filteredAnnotations.filter(
       (annotation) => annotation.type === 'toolCall',
     ) as ToolCallAnnotation[];

@@ -130,8 +130,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             onFinish(resp) {
               if (resp.usage) {
                 logger.debug('createSummary token usage', JSON.stringify(resp.usage));
-                cumulativeUsage.completionTokens += resp.usage.completionTokens || 0;
-                cumulativeUsage.promptTokens += resp.usage.promptTokens || 0;
+                cumulativeUsage.completionTokens += resp.usage.outputTokens || 0;
+                cumulativeUsage.promptTokens += resp.usage.inputTokens || 0;
                 cumulativeUsage.totalTokens += resp.usage.totalTokens || 0;
               }
             },
@@ -174,8 +174,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             onFinish(resp) {
               if (resp.usage) {
                 logger.debug('selectContext token usage', JSON.stringify(resp.usage));
-                cumulativeUsage.completionTokens += resp.usage.completionTokens || 0;
-                cumulativeUsage.promptTokens += resp.usage.promptTokens || 0;
+                cumulativeUsage.completionTokens += resp.usage.outputTokens || 0;
+                cumulativeUsage.promptTokens += resp.usage.inputTokens || 0;
                 cumulativeUsage.totalTokens += resp.usage.totalTokens || 0;
               }
             },
@@ -213,7 +213,6 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           supabaseConnection: supabase,
           toolChoice: 'auto',
           tools: mcpService.toolsWithoutExecute,
-          maxSteps: maxLLMSteps,
           onStepFinish: ({ toolCalls }) => {
             // add tool call annotations for frontend processing
             toolCalls.forEach((toolCall) => {
@@ -228,8 +227,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             logger.debug('usage', JSON.stringify(usage));
 
             if (usage) {
-              cumulativeUsage.completionTokens += usage.completionTokens || 0;
-              cumulativeUsage.promptTokens += usage.promptTokens || 0;
+              cumulativeUsage.completionTokens += usage.outputTokens || 0;
+              cumulativeUsage.promptTokens += usage.inputTokens || 0;
               cumulativeUsage.totalTokens += usage.totalTokens || 0;
             }
 

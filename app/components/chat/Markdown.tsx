@@ -149,27 +149,31 @@ export const Markdown = memo(
                   if (type === 'file') {
                     openArtifactInWorkbench(path);
                   } else if (type === 'message' && append) {
+                    const text = `[Model: ${model}]\n\n[Provider: ${provider?.name}]\n\n${message}`;
                     append({
                       id: `quick-action-message-${Date.now()}`,
                       content: [
                         {
                           type: 'text',
-                          text: `[Model: ${model}]\n\n[Provider: ${provider?.name}]\n\n${message}`,
+                          text,
                         },
                       ] as any,
+                      parts: [{ type: 'text', text }],
                       role: 'user',
                     });
                     console.log('Message appended:', message);
                   } else if (type === 'implement' && append && setChatMode) {
                     setChatMode('build');
+                    const text = `[Model: ${model}]\n\n[Provider: ${provider?.name}]\n\n${message}`;
                     append({
                       id: `quick-action-implement-${Date.now()}`,
                       content: [
                         {
                           type: 'text',
-                          text: `[Model: ${model}]\n\n[Provider: ${provider?.name}]\n\n${message}`,
+                          text,
                         },
                       ] as any,
+                      parts: [{ type: 'text', text }],
                       role: 'user',
                     });
                   } else if (type === 'link' && typeof href === 'string') {

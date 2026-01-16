@@ -160,7 +160,7 @@ sequenceDiagram
 - `app/lib/modules/llm/manager.ts` - LLM provider management
 - `app/lib/runtime/action-runner.ts` - Code execution engine
 - `app/lib/stores/` - State management
-- `app/routes/api/chat.ts` - Chat API endpoint
+- `app/routes/api.chat.ts` - Chat API endpoint
 - `docs/devin-context-sharing-diagrams.md` - Detailed integration diagrams
 
 ### Development Commands:

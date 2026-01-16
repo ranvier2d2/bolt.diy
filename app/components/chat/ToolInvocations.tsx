@@ -82,7 +82,7 @@ const getToolName = (tool: ToolInvocationPart) =>
 interface ToolInvocationsProps {
   toolInvocations: ToolInvocationPart[];
   toolCallAnnotations: ToolCallAnnotation[];
-  addToolApprovalResponse: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
+  addToolApprovalResponse: ({ id, approved, reason }: { id: string; approved: boolean; reason?: string }) => void;
 }
 
 export const ToolInvocations = memo(
@@ -120,7 +120,7 @@ export const ToolInvocations = memo(
               <div className="w-full text-bolt-elements-textPrimary font-medium leading-5 text-sm">
                 MCP Tool Invocations{' '}
                 {hasToolResults && (
-                  <span className="w-full w-full text-bolt-elements-textSecondary text-xs mt-0.5">
+                  <span className="w-full text-bolt-elements-textSecondary text-xs mt-0.5">
                     ({toolResults.length} tool{hasToolResults ? 's' : ''} used)
                   </span>
                 )}
@@ -282,7 +282,7 @@ const ToolResultsList = memo(({ toolInvocations, toolCallAnnotations, theme }: T
 interface ToolCallsListProps {
   toolInvocations: ToolInvocationPart[];
   toolCallAnnotations: ToolCallAnnotation[];
-  addToolApprovalResponse: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
+  addToolApprovalResponse: ({ id, approved, reason }: { id: string; approved: boolean; reason?: string }) => void;
   theme: Theme;
 }
 
@@ -325,13 +325,13 @@ const ToolCallsList = memo(({ toolInvocations, toolCallAnnotations, addToolAppro
       // Cancel: Cmd/Ctrl + Backspace
       if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'Backspace') {
         e.preventDefault();
-        addToolApprovalResponse({ toolCallId: openId, approved: false });
+        addToolApprovalResponse({ id: openId, approved: false });
       }
 
       // Run tool: Cmd/Ctrl + Enter
       if ((isMac ? e.metaKey : e.ctrlKey) && (e.key === 'Enter' || e.key === 'Return')) {
         e.preventDefault();
-        addToolApprovalResponse({ toolCallId: openId, approved: true });
+        addToolApprovalResponse({ id: openId, approved: true });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -380,7 +380,7 @@ const ToolCallsList = memo(({ toolInvocations, toolCallAnnotations, addToolAppro
                       )}
                       onClick={() =>
                         addToolApprovalResponse({
-                          toolCallId,
+                          id: toolCallId,
                           approved: false,
                         })
                       }
@@ -396,7 +396,7 @@ const ToolCallsList = memo(({ toolInvocations, toolCallAnnotations, addToolAppro
                       )}
                       onClick={() =>
                         addToolApprovalResponse({
-                          toolCallId,
+                          id: toolCallId,
                           approved: true,
                         })
                       }

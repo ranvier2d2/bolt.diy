@@ -164,7 +164,7 @@ export const ChatImpl = memo(
             ? message
             : {
                 ...message,
-                parts: [{ type: 'text', text: getMessageText(message) }],
+                parts: [{ type: 'text' as const, text: getMessageText(message) }],
               },
         ),
       [initialMessages],

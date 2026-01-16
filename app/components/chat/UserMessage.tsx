@@ -7,30 +7,15 @@ import { Markdown } from './Markdown';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
 import type {
-  DynamicToolUIPart,
   FileUIPart,
-  ReasoningUIPart,
-  SourceDocumentUIPart,
-  SourceUrlUIPart,
-  StepStartUIPart,
-  TextUIPart,
-  ToolUIPart,
+  UIMessagePart,
+  UITools,
 } from 'ai';
+import type { ChatDataTypes } from '~/types/chat';
 
 interface UserMessageProps {
   content: string | Array<{ type: string; text?: string; image?: string }>;
-  parts:
-    | (
-        | TextUIPart
-        | ReasoningUIPart
-        | ToolUIPart
-        | DynamicToolUIPart
-        | SourceUrlUIPart
-        | SourceDocumentUIPart
-        | FileUIPart
-        | StepStartUIPart
-      )[]
-    | undefined;
+  parts: UIMessagePart<ChatDataTypes, UITools>[] | undefined;
 }
 
 export function UserMessage({ content, parts }: UserMessageProps) {

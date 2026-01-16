@@ -1,4 +1,4 @@
-import { generateText, type CoreTool, type GenerateTextResult, type Message } from 'ai';
+import { generateText } from 'ai';
 import ignore from 'ignore';
 import type { IProviderSetting } from '~/types/model';
 import { IGNORE_PATTERNS, type FileMap } from './constants';
@@ -6,6 +6,8 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROVIDER_LIST } from '~/utils/constant
 import { createFilesContext, extractCurrentContext, extractPropertiesFromMessage, simplifyBoltActions } from './utils';
 import { createScopedLogger } from '~/utils/logger';
 import { LLMManager } from '~/lib/modules/llm/manager';
+import type { ChatMessage } from '~/types/chat';
+import { getMessageText } from '~/utils/chatMessage';
 
 // Common patterns to ignore, similar to .gitignore
 
@@ -13,7 +15,7 @@ const ig = ignore().add(IGNORE_PATTERNS);
 const logger = createScopedLogger('select-context');
 
 export async function selectContext(props: {
-  messages: Message[];
+  messages: ChatMessage[];
   env?: Env;
   apiKeys?: Record<string, string>;
   files: FileMap;
@@ -21,7 +23,7 @@ export async function selectContext(props: {
   promptId?: string;
   contextOptimization?: boolean;
   summary: string;
-  onFinish?: (resp: GenerateTextResult<Record<string, CoreTool<any, any>>, never>) => void;
+  onFinish?: (resp: any) => void;
 }) {
   const { messages, env: serverEnv, apiKeys, files, providerSettings, summary, onFinish } = props;
   let currentModel = DEFAULT_MODEL;
@@ -36,7 +38,7 @@ export async function selectContext(props: {
     } else if (message.role == 'assistant') {
       let content = message.content;
 
-      content = simplifyBoltActions(content);
+      content = simplifyBoltActions(typeof content === 'string' ? content : getMessageText(message));
 
       content = content.replace(/<div class=\\"__boltThought__\\">.*?<\/div>/s, '');
       content = content.replace(/<think>.*?<\/think>/s, '');
@@ -107,9 +109,9 @@ export async function selectContext(props: {
 
   const summaryText = `Here is the summary of the chat till now: ${summary}`;
 
-  const extractTextContent = (message: Message) =>
+  const extractTextContent = (message: ChatMessage) =>
     Array.isArray(message.content)
-      ? (message.content.find((item) => item.type === 'text')?.text as string) || ''
+      ? (message.content.find((item: { type: string; text?: string }) => item.type === 'text')?.text as string) || ''
       : message.content;
 
   const lastUserMessage = processedMessages.filter((x) => x.role == 'user').pop();
