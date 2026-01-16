@@ -1,4 +1,4 @@
-import type { LanguageModelV1 } from 'ai';
+import type { LanguageModelV2 } from '@ai-sdk/provider';
 import type { IProviderSetting } from '~/types/model';
 
 export interface ModelInfo {

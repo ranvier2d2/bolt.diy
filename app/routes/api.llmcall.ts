@@ -103,7 +103,11 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
         messages: [
           {
             role: 'user',
-            content: `${message}`,
+
+            parts: [{
+              type: 'text',
+              text: `${message}`
+            }]
           },
         ],
         env: context.cloudflare?.env as any,
@@ -183,7 +187,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
       logger.info(`DEBUG: Model "${modelDetails.name}" detected as reasoning model: ${isReasoning}`);
 
       // Use maxCompletionTokens for reasoning models (o1, GPT-5), maxTokens for traditional models
-      const tokenParams = isReasoning ? { maxCompletionTokens: dynamicMaxTokens } : { maxTokens: dynamicMaxTokens };
+      const tokenParams = isReasoning ? { maxCompletionTokens: dynamicMaxTokens } : { maxOutputTokens: dynamicMaxTokens };
 
       // Filter out unsupported parameters for reasoning models
       const baseParams = {

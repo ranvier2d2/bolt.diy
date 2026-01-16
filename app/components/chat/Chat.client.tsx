@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react';
-import type { Message } from 'ai';
+import { DefaultChatTransport, type UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { useAnimate } from 'framer-motion';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -25,11 +25,20 @@ import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
 import { defaultDesignScheme, type DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
-import type { TextUIPart, FileUIPart, Attachment } from '@ai-sdk/ui-utils';
+import type { FileUIPart, TextUIPart } from 'ai';
+import { z } from 'zod';
 import { useMCPStore } from '~/lib/stores/mcp';
 import type { LlmErrorAlertType } from '~/types/actions';
+import type { ProgressAnnotation } from '~/types/context';
 
 const logger = createScopedLogger('Chat');
+const progressSchema = z.object({
+  type: z.literal('progress'),
+  label: z.string(),
+  status: z.enum(['in-progress', 'complete']),
+  order: z.number(),
+  message: z.string(),
+});
 
 export function Chat() {
   renderLogger.trace('Chat');
@@ -57,11 +66,11 @@ export function Chat() {
 
 const processSampledMessages = createSampler(
   (options: {
-    messages: Message[];
-    initialMessages: Message[];
+    messages: UIMessage[];
+    initialMessages: UIMessage[];
     isLoading: boolean;
-    parseMessages: (messages: Message[], isLoading: boolean) => void;
-    storeMessageHistory: (messages: Message[]) => Promise<void>;
+    parseMessages: (messages: UIMessage[], isLoading: boolean) => void;
+    storeMessageHistory: (messages: UIMessage[]) => Promise<void>;
   }) => {
     const { messages, initialMessages, isLoading, parseMessages, storeMessageHistory } = options;
     parseMessages(messages, isLoading);
@@ -74,9 +83,9 @@ const processSampledMessages = createSampler(
 );
 
 interface ChatProps {
-  initialMessages: Message[];
-  storeMessageHistory: (messages: Message[]) => Promise<void>;
-  importChat: (description: string, messages: Message[]) => Promise<void>;
+  initialMessages: UIMessage[];
+  storeMessageHistory: (messages: UIMessage[]) => Promise<void>;
+  importChat: (description: string, messages: UIMessage[]) => Promise<void>;
   exportChat: () => void;
   description?: string;
 }
@@ -117,22 +126,20 @@ export const ChatImpl = memo(
     const [selectedElement, setSelectedElement] = useState<ElementInfo | null>(null);
     const mcpSettings = useMCPStore((state) => state.settings);
 
+    const [input, setInput] = useState('');
+    const [chatData, setChatData] = useState<Array<ProgressAnnotation>>([]);
+
     const {
       messages,
-      isLoading,
-      input,
-      handleInputChange,
-      setInput,
+      status,
       stop,
-      append,
+      sendMessage: sendChatMessage,
       setMessages,
-      reload,
+      regenerate,
       error,
-      data: chatData,
-      setData,
-      addToolResult,
+      addToolApprovalResponse,
+      addToolOutput,
     } = useChat({
-      api: '/api/chat',
       body: {
         apiKeys,
         files,
@@ -150,32 +157,43 @@ export const ChatImpl = memo(
         },
         maxLLMSteps: mcpSettings.maxLLMSteps,
       },
-      sendExtraMessageFields: true,
+
       onError: (e) => {
         setFakeLoading(false);
         handleError(e, 'chat');
       },
-      onFinish: (message, response) => {
-        const usage = response.usage;
-        setData(undefined);
 
-        if (usage) {
-          console.log('Token usage:', usage);
-          logStore.logProvider('Chat response completed', {
-            component: 'Chat',
-            action: 'response',
-            model,
-            provider: provider.name,
-            usage,
-            messageLength: message.content.length,
-          });
-        }
+      onFinish: ({ message }) => {
+        setChatData([]);
+        logStore.logProvider('Chat response completed', {
+          component: 'Chat',
+          action: 'response',
+          model,
+          provider: provider.name,
+          messageLength: message.parts.length,
+        });
 
         logger.debug('Finished streaming');
       },
+
+      onData: (dataPart) => {
+        if (dataPart.type === 'data-progress') {
+          setChatData((prev) => [...prev, dataPart.data]);
+        }
+      },
+
+      dataPartSchemas: {
+        progress: progressSchema,
+      },
+
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
+
+      transport: new DefaultChatTransport({
+        api: '/api/chat'
+      })
     });
+    const isLoading = status === 'submitted' || status === 'streaming';
     useEffect(() => {
       const prompt = searchParams.get('prompt');
 
@@ -184,9 +202,10 @@ export const ChatImpl = memo(
       if (prompt) {
         setSearchParams({});
         runAnimation();
-        append({
+        const messageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${prompt}`;
+        sendChatMessage({
           role: 'user',
-          content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${prompt}`,
+          parts: createMessageParts(messageText),
         });
       }
     }, [model, provider, searchParams]);
@@ -296,7 +315,7 @@ export const ChatImpl = memo(
           provider: provider.name,
           errorType,
         });
-        setData([]);
+        setChatData([]);
       },
       [provider.name, stop],
     );
@@ -333,9 +352,7 @@ export const ChatImpl = memo(
       setChatStarted(true);
     };
 
-    // Helper function to create message parts array from text and images
     const createMessageParts = (text: string, images: string[] = []): Array<TextUIPart | FileUIPart> => {
-      // Create an array of properly typed message parts
       const parts: Array<TextUIPart | FileUIPart> = [
         {
           type: 'text',
@@ -343,38 +360,35 @@ export const ChatImpl = memo(
         },
       ];
 
-      // Add image parts if any
       images.forEach((imageData) => {
-        // Extract correct MIME type from the data URL
-        const mimeType = imageData.split(';')[0].split(':')[1] || 'image/jpeg';
+        const mediaType = imageData.split(';')[0].split(':')[1] || 'image/jpeg';
 
-        // Create file part according to AI SDK format
         parts.push({
           type: 'file',
-          mimeType,
-          data: imageData.replace(/^data:image\/[^;]+;base64,/, ''),
+          mediaType,
+          url: imageData,
         });
       });
 
       return parts;
     };
 
-    // Helper function to convert File[] to Attachment[] for AI SDK
-    const filesToAttachments = async (files: File[]): Promise<Attachment[] | undefined> => {
+    const filesToFileParts = async (files: File[]): Promise<FileUIPart[] | undefined> => {
       if (files.length === 0) {
         return undefined;
       }
 
-      const attachments = await Promise.all(
+      const fileParts = await Promise.all(
         files.map(
           (file) =>
-            new Promise<Attachment>((resolve) => {
+            new Promise<FileUIPart>((resolve) => {
               const reader = new FileReader();
 
               reader.onloadend = () => {
                 resolve({
-                  name: file.name,
-                  contentType: file.type,
+                  type: 'file',
+                  filename: file.name,
+                  mediaType: file.type || 'application/octet-stream',
                   url: reader.result as string,
                 });
               };
@@ -383,7 +397,7 @@ export const ChatImpl = memo(
         ),
       );
 
-      return attachments;
+      return fileParts;
     };
 
     const sendMessage = async (_event: React.UIEvent, messageInput?: string) => {
@@ -407,7 +421,7 @@ export const ChatImpl = memo(
         finalMessageContent = messageContent + elementInfo;
       }
 
-      runAnimation();
+      await runAnimation();
 
       if (!chatStarted) {
         setFakeLoading(true);
@@ -432,34 +446,41 @@ export const ChatImpl = memo(
 
             if (temResp) {
               const { assistantMessage, userMessage } = temResp;
+              const now = new Date().getTime();
               const userMessageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${finalMessageContent}`;
+              const followupUserText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userMessage}`;
+              const followupUserId = `3-${now}`;
+              const followupUserParts = createMessageParts(followupUserText);
 
               setMessages([
                 {
-                  id: `1-${new Date().getTime()}`,
+                  id: `1-${now}`,
                   role: 'user',
-                  content: userMessageText,
                   parts: createMessageParts(userMessageText, imageDataList),
                 },
                 {
-                  id: `2-${new Date().getTime()}`,
+                  id: `2-${now}`,
                   role: 'assistant',
-                  content: assistantMessage,
+                  parts: createMessageParts(assistantMessage),
                 },
                 {
-                  id: `3-${new Date().getTime()}`,
+                  id: followupUserId,
                   role: 'user',
-                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userMessage}`,
-                  annotations: ['hidden'],
+                  parts: followupUserParts,
+                  metadata: {
+                    annotations: ['hidden'],
+                  },
                 },
               ]);
 
-              const reloadOptions =
-                uploadedFiles.length > 0
-                  ? { experimental_attachments: await filesToAttachments(uploadedFiles) }
-                  : undefined;
+              const uploadedParts = await filesToFileParts(uploadedFiles);
+              const combinedParts = uploadedParts ? [...followupUserParts, ...uploadedParts] : followupUserParts;
 
-              reload(reloadOptions);
+              await sendChatMessage({
+                role: 'user',
+                parts: combinedParts,
+                messageId: followupUserId,
+              });
               setInput('');
               Cookies.remove(PROMPT_COOKIE_KEY);
 
@@ -478,18 +499,14 @@ export const ChatImpl = memo(
 
         // If autoSelectTemplate is disabled or template selection failed, proceed with normal message
         const userMessageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${finalMessageContent}`;
-        const attachments = uploadedFiles.length > 0 ? await filesToAttachments(uploadedFiles) : undefined;
+        const baseParts = createMessageParts(userMessageText, imageDataList);
+        const uploadedParts = await filesToFileParts(uploadedFiles);
+        const combinedParts = uploadedParts ? [...baseParts, ...uploadedParts] : baseParts;
 
-        setMessages([
-          {
-            id: `${new Date().getTime()}`,
-            role: 'user',
-            content: userMessageText,
-            parts: createMessageParts(userMessageText, imageDataList),
-            experimental_attachments: attachments,
-          },
-        ]);
-        reload(attachments ? { experimental_attachments: attachments } : undefined);
+        await sendChatMessage({
+          role: 'user',
+          parts: combinedParts,
+        });
         setFakeLoading(false);
         setInput('');
         Cookies.remove(PROMPT_COOKIE_KEY);
@@ -515,34 +532,26 @@ export const ChatImpl = memo(
       if (modifiedFiles !== undefined) {
         const userUpdateArtifact = filesToArtifacts(modifiedFiles, `${Date.now()}`);
         const messageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userUpdateArtifact}${finalMessageContent}`;
+        const baseParts = createMessageParts(messageText, imageDataList);
+        const uploadedParts = await filesToFileParts(uploadedFiles);
+        const combinedParts = uploadedParts ? [...baseParts, ...uploadedParts] : baseParts;
 
-        const attachmentOptions =
-          uploadedFiles.length > 0 ? { experimental_attachments: await filesToAttachments(uploadedFiles) } : undefined;
-
-        append(
-          {
-            role: 'user',
-            content: messageText,
-            parts: createMessageParts(messageText, imageDataList),
-          },
-          attachmentOptions,
-        );
+        await sendChatMessage({
+          role: 'user',
+          parts: combinedParts,
+        });
 
         workbenchStore.resetAllFileModifications();
       } else {
         const messageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${finalMessageContent}`;
+        const baseParts = createMessageParts(messageText, imageDataList);
+        const uploadedParts = await filesToFileParts(uploadedFiles);
+        const combinedParts = uploadedParts ? [...baseParts, ...uploadedParts] : baseParts;
 
-        const attachmentOptions =
-          uploadedFiles.length > 0 ? { experimental_attachments: await filesToAttachments(uploadedFiles) } : undefined;
-
-        append(
-          {
-            role: 'user',
-            content: messageText,
-            parts: createMessageParts(messageText, imageDataList),
-          },
-          attachmentOptions,
-        );
+        await sendChatMessage({
+          role: 'user',
+          parts: combinedParts,
+        });
       }
 
       setInput('');
@@ -556,12 +565,27 @@ export const ChatImpl = memo(
       textareaRef.current?.blur();
     };
 
+    const append = useCallback(
+      (message: UIMessage) => {
+        if (!message.parts?.length) {
+          return;
+        }
+
+        sendChatMessage({
+          role: message.role ?? 'user',
+          parts: message.parts,
+          metadata: message.metadata,
+        });
+      },
+      [sendChatMessage],
+    );
+
     /**
      * Handles the change event for the textarea and updates the input state.
      * @param event - The change event from the textarea.
      */
     const onTextareaChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      handleInputChange(event);
+      setInput(event.target.value);
     };
 
     /**
@@ -594,6 +618,19 @@ export const ChatImpl = memo(
       Cookies.set('selectedProvider', newProvider.name, { expires: 30 });
     };
 
+    const messagesWithParsedText = messages.map((message, index) => {
+      const parsedText = parsedMessages[index];
+
+      if (!parsedText) {
+        return message;
+      }
+
+      return {
+        ...message,
+        parts: message.parts.map((part) => (part.type === 'text' ? { ...part, text: parsedText } : part)),
+      };
+    });
+
     return (
       <BaseChat
         ref={animationScope}
@@ -621,16 +658,7 @@ export const ChatImpl = memo(
         description={description}
         importChat={importChat}
         exportChat={exportChat}
-        messages={messages.map((message, i) => {
-          if (message.role === 'user') {
-            return message;
-          }
-
-          return {
-            ...message,
-            content: parsedMessages[i] || '',
-          };
-        })}
+        messages={messagesWithParsedText}
         enhancePrompt={() => {
           enhancePrompt(
             input,
@@ -663,7 +691,7 @@ export const ChatImpl = memo(
         setDesignScheme={setDesignScheme}
         selectedElement={selectedElement}
         setSelectedElement={setSelectedElement}
-        addToolResult={addToolResult}
+        addToolApprovalResponse={addToolApprovalResponse}
       />
     );
   },

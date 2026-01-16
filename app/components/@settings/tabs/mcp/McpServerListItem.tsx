@@ -6,7 +6,7 @@ type ParameterProperty = {
 };
 
 type ToolParameters = {
-  jsonSchema: {
+  jsonSchema?: {
     properties?: Record<string, ParameterProperty>;
     required?: string[];
   };
@@ -22,8 +22,9 @@ export default function McpServerListItem({ toolName, toolSchema }: McpToolProps
     return null;
   }
 
-  const parameters = (toolSchema.parameters as ToolParameters)?.jsonSchema.properties || {};
-  const requiredParams = (toolSchema.parameters as ToolParameters)?.jsonSchema.required || [];
+  const schema = (toolSchema.inputSchema as ToolParameters | undefined)?.jsonSchema;
+  const parameters = schema?.properties || {};
+  const requiredParams = schema?.required || [];
 
   return (
     <div className="mt-2 ml-4 p-3 rounded-md bg-bolt-elements-background-depth-2 text-xs">
