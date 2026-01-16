@@ -1,4 +1,5 @@
-import type { Message } from 'ai';
+import type { ChatMessage } from '~/types/chat';
+import { getMessageAnnotations, getMessageText } from '~/utils/chatMessage';
 import { Fragment } from 'react';
 import { classNames } from '~/utils/classNames';
 import { AssistantMessage } from './AssistantMessage';
@@ -15,13 +16,13 @@ interface MessagesProps {
   id?: string;
   className?: string;
   isStreaming?: boolean;
-  messages?: Message[];
-  append?: (message: Message) => void;
+  messages?: ChatMessage[];
+  append?: (message: ChatMessage) => void;
   chatMode?: 'discuss' | 'build';
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
   provider?: ProviderInfo;
-  addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
+  addToolApprovalResponse: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
 }
 
 export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
@@ -53,7 +54,9 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
       <div id={id} className={props.className} ref={ref}>
         {messages.length > 0
           ? messages.map((message, index) => {
-              const { role, content, id: messageId, annotations, parts } = message;
+              const { role, id: messageId, parts, metadata } = message;
+              const content = getMessageText(message);
+              const annotations = getMessageAnnotations({ annotations: message.annotations, metadata });
               const isUserMessage = role === 'user';
               const isFirst = index === 0;
               const isHidden = annotations?.includes('hidden');
@@ -75,7 +78,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                     ) : (
                       <AssistantMessage
                         content={content}
-                        annotations={message.annotations}
+                        annotations={annotations}
                         messageId={messageId}
                         onRewind={handleRewind}
                         onFork={handleFork}
@@ -85,7 +88,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                         model={props.model}
                         provider={props.provider}
                         parts={parts}
-                        addToolResult={props.addToolResult}
+                        addToolApprovalResponse={props.addToolApprovalResponse}
                       />
                     )}
                   </div>

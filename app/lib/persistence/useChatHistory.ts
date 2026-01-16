@@ -1,7 +1,7 @@
 import { useLoaderData, useNavigate, useSearchParams } from '@remix-run/react';
 import { useState, useEffect, useCallback } from 'react';
 import { atom } from 'nanostores';
-import { generateId, type JSONValue, type Message } from 'ai';
+import { generateId, type JSONValue } from 'ai';
 import { toast } from 'react-toastify';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { logStore } from '~/lib/stores/logs'; // Import logStore
@@ -22,12 +22,14 @@ import type { Snapshot } from './types';
 import { webcontainer } from '~/lib/webcontainer';
 import { detectProjectCommands, createCommandActionsString } from '~/utils/projectCommands';
 import type { ContextAnnotation } from '~/types/context';
+import type { ChatMessage } from '~/types/chat';
+import { getMessageAnnotations } from '~/utils/chatMessage';
 
 export interface ChatHistoryItem {
   id: string;
   urlId?: string;
   description?: string;
-  messages: Message[];
+  messages: ChatMessage[];
   timestamp: string;
   metadata?: IChatMetadata;
 }
@@ -39,13 +41,15 @@ export const db = persistenceEnabled ? await openDatabase() : undefined;
 export const chatId = atom<string | undefined>(undefined);
 export const description = atom<string | undefined>(undefined);
 export const chatMetadata = atom<IChatMetadata | undefined>(undefined);
+
+const createTextParts = (text: string) => [{ type: 'text' as const, text }];
 export function useChatHistory() {
   const navigate = useNavigate();
   const { id: mixedId } = useLoaderData<{ id?: string }>();
   const [searchParams] = useSearchParams();
 
-  const [archivedMessages, setArchivedMessages] = useState<Message[]>([]);
-  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
+  const [archivedMessages, setArchivedMessages] = useState<ChatMessage[]>([]);
+  const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
   const [ready, setReady] = useState<boolean>(false);
   const [urlId, setUrlId] = useState<string | undefined>();
 
@@ -92,7 +96,7 @@ export function useChatHistory() {
             }
 
             let filteredMessages = storedMessages.messages.slice(startingIdx + 1, endingIdx);
-            let archivedMessages: Message[] = [];
+            let archivedMessages: ChatMessage[] = [];
 
             if (startingIdx >= 0) {
               archivedMessages = storedMessages.messages.slice(0, startingIdx + 1);
@@ -123,7 +127,8 @@ export function useChatHistory() {
                   id: generateId(),
                   role: 'user',
                   content: `Restore project from snapshot`, // Removed newline
-                  annotations: ['no-store', 'hidden'],
+                  parts: createTextParts('Restore project from snapshot'),
+                  metadata: { annotations: ['no-store', 'hidden'] },
                 },
                 {
                   id: storedMessages.messages[snapshotIndex].id,
@@ -148,18 +153,40 @@ ${value.content}
                   ${commandActionsString} 
                   </boltArtifact>
                   `, // Added commandActionsString, followupMessage, updated id and title
-                  annotations: [
-                    'no-store',
-                    ...(summary
-                      ? [
-                          {
-                            chatId: storedMessages.messages[snapshotIndex].id,
-                            type: 'chatSummary',
-                            summary,
-                          } satisfies ContextAnnotation,
-                        ]
-                      : []),
-                  ],
+                  parts: createTextParts(
+                    `Bolt Restored your chat from a snapshot. You can revert this message to load the full chat history.
+                  <boltArtifact id="restored-project-setup" title="Restored Project & Setup" type="bundled">
+                  ${Object.entries(snapshot?.files || {})
+                    .map(([key, value]) => {
+                      if (value?.type === 'file') {
+                        return `
+                      <boltAction type="file" filePath="${key}">
+${value.content}
+                      </boltAction>
+                      `;
+                      } else {
+                        return ``;
+                      }
+                    })
+                    .join('\n')}
+                  ${commandActionsString} 
+                  </boltArtifact>
+                  `,
+                  ),
+                  metadata: {
+                    annotations: [
+                      'no-store',
+                      ...(summary
+                        ? [
+                            {
+                              chatId: storedMessages.messages[snapshotIndex].id,
+                              type: 'chatSummary',
+                              summary,
+                            } satisfies ContextAnnotation,
+                          ]
+                        : []),
+                    ],
+                  },
                 },
 
                 // Remove the separate user and assistant messages for commands
@@ -273,13 +300,13 @@ ${value.content}
         console.error(error);
       }
     },
-    storeMessageHistory: async (messages: Message[]) => {
+    storeMessageHistory: async (messages: ChatMessage[]) => {
       if (!db || messages.length === 0) {
         return;
       }
 
       const { firstArtifact } = workbenchStore;
-      messages = messages.filter((m) => !m.annotations?.includes('no-store'));
+      messages = messages.filter((m) => !getMessageAnnotations(m).includes('no-store'));
 
       let _urlId = urlId;
 
@@ -294,7 +321,7 @@ ${value.content}
       const lastMessage = messages[messages.length - 1];
 
       if (lastMessage.role === 'assistant') {
-        const annotations = lastMessage.annotations as JSONValue[];
+        const annotations = getMessageAnnotations(lastMessage);
         const filteredAnnotations = (annotations?.filter(
           (annotation: JSONValue) =>
             annotation && typeof annotation === 'object' && Object.keys(annotation).includes('type'),
@@ -356,7 +383,7 @@ ${value.content}
         console.log(error);
       }
     },
-    importChat: async (description: string, messages: Message[], metadata?: IChatMetadata) => {
+    importChat: async (description: string, messages: ChatMessage[], metadata?: IChatMetadata) => {
       if (!db) {
         return;
       }

@@ -1,21 +1,17 @@
 import {
   experimental_createMCPClient,
   type ToolSet,
-  type Message,
-  type DataStreamWriter,
-  convertToCoreMessages,
-  formatDataStreamPart,
+  convertToModelMessages,
+  type DynamicToolUIPart,
+  type ToolUIPart,
+  type UIMessageStreamWriter,
 } from 'ai';
 import { Experimental_StdioMCPTransport } from 'ai/mcp-stdio';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { z } from 'zod';
 import type { ToolCallAnnotation } from '~/types/context';
-import {
-  TOOL_EXECUTION_APPROVAL,
-  TOOL_EXECUTION_DENIED,
-  TOOL_EXECUTION_ERROR,
-  TOOL_NO_EXECUTE_FUNCTION,
-} from '~/utils/constants';
+import type { ChatMessage } from '~/types/chat';
+import { TOOL_EXECUTION_ERROR, TOOL_NO_EXECUTE_FUNCTION } from '~/utils/constants';
 import { createScopedLogger } from '~/utils/logger';
 
 const logger = createScopedLogger('mcp-service');
@@ -355,7 +351,10 @@ export class MCPService {
     return toolName in this._tools;
   }
 
-  processToolCall(toolCall: ToolCall, dataStream: DataStreamWriter): void {
+  processToolCall(
+    toolCall: ToolCall,
+    dataStream: UIMessageStreamWriter<ChatMessage>,
+  ): ToolCallAnnotation | undefined {
     const { toolCallId, toolName } = toolCall;
 
     if (this.isValidToolName(toolName)) {
@@ -363,18 +362,29 @@ export class MCPService {
       const serverName = this._toolNamesToServerNames.get(toolName);
 
       if (serverName) {
-        dataStream.writeMessageAnnotation({
+        const annotation = {
           type: 'toolCall',
           toolCallId,
           serverName,
           toolName,
           toolDescription: description,
-        } satisfies ToolCallAnnotation);
+        } satisfies ToolCallAnnotation;
+
+        dataStream.write({
+          type: 'data-toolCall',
+          data: annotation,
+        });
+        return annotation;
       }
     }
+
+    return undefined;
   }
 
-  async processToolInvocations(messages: Message[], dataStream: DataStreamWriter): Promise<Message[]> {
+  async processToolInvocations(
+    messages: ChatMessage[],
+    dataStream: UIMessageStreamWriter<ChatMessage>,
+  ): Promise<ChatMessage[]> {
     const lastMessage = messages[messages.length - 1];
     const parts = lastMessage.parts;
 
@@ -384,60 +394,74 @@ export class MCPService {
 
     const processedParts = await Promise.all(
       parts.map(async (part) => {
-        // Only process tool invocations parts
-        if (part.type !== 'tool-invocation') {
+        const isToolPart = part.type === 'dynamic-tool' || part.type.startsWith('tool-');
+
+        if (!isToolPart) {
           return part;
         }
 
-        const { toolInvocation } = part;
-        const { toolName, toolCallId } = toolInvocation;
+        const toolPart = part as ToolUIPart | DynamicToolUIPart;
+        const toolName = toolPart.type === 'dynamic-tool' ? toolPart.toolName : toolPart.type.replace(/^tool-/, '');
+        const { toolCallId } = toolPart;
 
-        // return part as-is if tool does not exist, or if it's not a tool call result
-        if (!this.isValidToolName(toolName) || toolInvocation.state !== 'result') {
+        if (!this.isValidToolName(toolName) || toolPart.state !== 'approval-responded') {
           return part;
         }
 
-        let result;
+        if (!toolPart.approval?.approved) {
+          return {
+            ...toolPart,
+            state: 'output-denied',
+            approval: {
+              id: toolPart.approval?.id ?? toolCallId,
+              approved: false,
+              reason: toolPart.approval?.reason,
+            },
+          };
+        }
 
-        if (toolInvocation.result === TOOL_EXECUTION_APPROVAL.APPROVE) {
-          const toolInstance = this._tools[toolName];
+        const toolInstance = this._tools[toolName];
+        let output;
 
-          if (toolInstance && typeof toolInstance.execute === 'function') {
-            logger.debug(`calling tool "${toolName}" with args: ${JSON.stringify(toolInvocation.args)}`);
+        if (toolInstance && typeof toolInstance.execute === 'function') {
+          logger.debug(`calling tool "${toolName}" with args: ${JSON.stringify(toolPart.input)}`);
 
-            try {
-              result = await toolInstance.execute(toolInvocation.args, {
-                messages: convertToCoreMessages(messages),
-                toolCallId,
-              });
-            } catch (error) {
-              logger.error(`error while calling tool "${toolName}":`, error);
-              result = TOOL_EXECUTION_ERROR;
-            }
-          } else {
-            result = TOOL_NO_EXECUTE_FUNCTION;
+          try {
+            const modelMessages = await convertToModelMessages(
+              messages.map(({ id, ...rest }) => rest),
+              { tools: this._toolsWithoutExecute },
+            );
+            output = await toolInstance.execute(toolPart.input, {
+              messages: modelMessages,
+              toolCallId,
+            });
+          } catch (error) {
+            logger.error(`error while calling tool "${toolName}":`, error);
+            output = TOOL_EXECUTION_ERROR;
           }
-        } else if (toolInvocation.result === TOOL_EXECUTION_APPROVAL.REJECT) {
-          result = TOOL_EXECUTION_DENIED;
         } else {
-          // For any unhandled responses, return the original part.
-          return part;
+          output = TOOL_NO_EXECUTE_FUNCTION;
         }
 
-        // Forward updated tool result to the client.
-        dataStream.write(
-          formatDataStreamPart('tool_result', {
+        dataStream.write({
+          type: 'data-toolCall',
+          data: {
+            type: 'toolCall',
             toolCallId,
-            result,
-          }),
-        );
+            serverName: this._toolNamesToServerNames.get(toolName) || 'unknown',
+            toolName,
+            toolDescription: this._toolsWithoutExecute[toolName]?.description || 'No description available',
+          } satisfies ToolCallAnnotation,
+        });
 
-        // Return updated toolInvocation with the actual result.
         return {
-          ...part,
-          toolInvocation: {
-            ...toolInvocation,
-            result,
+          ...toolPart,
+          state: 'output-available',
+          output,
+          approval: {
+            id: toolPart.approval?.id ?? toolCallId,
+            approved: true,
+            reason: toolPart.approval?.reason,
           },
         };
       }),

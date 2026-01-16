@@ -2,7 +2,7 @@
  * @ts-nocheck
  * Preventing TS checks with files presented in the video for a better presentation.
  */
-import type { JSONValue, Message } from 'ai';
+import type { JSONValue } from 'ai';
 import React, { type RefCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
@@ -33,6 +33,7 @@ import { ChatBox } from './ChatBox';
 import type { DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
 import LlmErrorAlert from './LLMApiAlert';
+import type { ChatMessage } from '~/types/chat';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -44,7 +45,7 @@ interface BaseChatProps {
   chatStarted?: boolean;
   isStreaming?: boolean;
   onStreamingChange?: (streaming: boolean) => void;
-  messages?: Message[];
+  messages?: ChatMessage[];
   description?: string;
   enhancingPrompt?: boolean;
   promptEnhanced?: boolean;
@@ -58,7 +59,7 @@ interface BaseChatProps {
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   enhancePrompt?: () => void;
-  importChat?: (description: string, messages: Message[]) => Promise<void>;
+  importChat?: (description: string, messages: ChatMessage[]) => Promise<void>;
   exportChat?: () => void;
   uploadedFiles?: File[];
   setUploadedFiles?: (files: File[]) => void;
@@ -75,12 +76,12 @@ interface BaseChatProps {
   data?: JSONValue[] | undefined;
   chatMode?: 'discuss' | 'build';
   setChatMode?: (mode: 'discuss' | 'build') => void;
-  append?: (message: Message) => void;
+  append?: (message: ChatMessage) => void;
   designScheme?: DesignScheme;
   setDesignScheme?: (scheme: DesignScheme) => void;
   selectedElement?: ElementInfo | null;
   setSelectedElement?: (element: ElementInfo | null) => void;
-  addToolResult?: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
+  addToolApprovalResponse?: ({ toolCallId, approved }: { toolCallId: string; approved: boolean }) => void;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -127,8 +128,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       setDesignScheme,
       selectedElement,
       setSelectedElement,
-      addToolResult = () => {
-        throw new Error('addToolResult not implemented');
+      addToolApprovalResponse = () => {
+        throw new Error('addToolApprovalResponse not implemented');
       },
     },
     ref,
@@ -378,7 +379,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         setChatMode={setChatMode}
                         provider={provider}
                         model={model}
-                        addToolResult={addToolResult}
+                        addToolApprovalResponse={addToolApprovalResponse}
                       />
                     ) : null;
                   }}

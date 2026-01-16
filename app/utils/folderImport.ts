@@ -1,4 +1,4 @@
-import type { Message } from 'ai';
+import type { ChatMessage } from '~/types/chat';
 import { generateId } from './fileUtils';
 import { detectProjectCommands, createCommandsMessage, escapeBoltTags } from './projectCommands';
 
@@ -6,7 +6,7 @@ export const createChatFromFolder = async (
   files: File[],
   binaryFiles: string[],
   folderName: string,
-): Promise<Message[]> => {
+): Promise<ChatMessage[]> => {
   const fileArtifacts = await Promise.all(
     files.map(async (file) => {
       return new Promise<{ content: string; path: string }>((resolve, reject) => {
@@ -34,7 +34,7 @@ export const createChatFromFolder = async (
       ? `\n\nSkipped ${binaryFiles.length} binary files:\n${binaryFiles.map((f) => `- ${f}`).join('\n')}`
       : '';
 
-  const filesMessage: Message = {
+  const filesMessage: ChatMessage = {
     role: 'assistant',
     content: `I've imported the contents of the "${folderName}" folder.${binaryFilesMessage}
 
@@ -48,13 +48,30 @@ ${escapeBoltTags(file.content)}
   .join('\n\n')}
 </boltArtifact>`,
     id: generateId(),
+    parts: [
+      {
+        type: 'text',
+        text: `I've imported the contents of the "${folderName}" folder.${binaryFilesMessage}
+
+<boltArtifact id="imported-files" title="Imported Files" type="bundled" >
+${fileArtifacts
+  .map(
+    (file) => `<boltAction type="file" filePath="${file.path}">
+${escapeBoltTags(file.content)}
+</boltAction>`,
+  )
+  .join('\n\n')}
+</boltArtifact>`,
+      },
+    ],
     createdAt: new Date(),
   };
 
-  const userMessage: Message = {
+  const userMessage: ChatMessage = {
     role: 'user',
     id: generateId(),
     content: `Import the "${folderName}" folder`,
+    parts: [{ type: 'text', text: `Import the "${folderName}" folder` }],
     createdAt: new Date(),
   };
 
@@ -65,6 +82,7 @@ ${escapeBoltTags(file.content)}
       role: 'user',
       id: generateId(),
       content: 'Setup the codebase and Start the application',
+      parts: [{ type: 'text', text: 'Setup the codebase and Start the application' }],
     });
     messages.push(commandsMessage);
   }
